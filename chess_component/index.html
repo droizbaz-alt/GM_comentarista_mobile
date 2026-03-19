@@ -147,7 +147,7 @@
     </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+<script src="chess.min.js"></script>
 <script>
 // ── Config ──────────────────────────────────────────────────────────────────
 const PIECE_BASE = "https://chessboardjs.com/img/chesspieces/wikipedia/";
@@ -346,8 +346,9 @@ function showPromoPanel(color) {
     const emojis = { q:"♛", r:"♜", b:"♝", n:"♞" };
     pieces.forEach(p => {
         const btn = document.createElement("button");
-        btn.textContent = color === "w" ? emojis[p].replace(/[♛♜♝♞]/g,
-            c => ({♛:"♕",♜:"♖",♝:"♗",♞:"♘"}[c])) : emojis[p];
+        const wEmojis = { q:"\u2655", r:"\u2656", b:"\u2657", n:"\u2658" };
+        const bEmojis = { q:"\u265b", r:"\u265c", b:"\u265d", n:"\u265e" };
+        btn.textContent = color === "w" ? wEmojis[p] : bEmojis[p];
         btn.addEventListener("click", () => {
             panel.style.display = "none";
             if (pendingPromo) {
