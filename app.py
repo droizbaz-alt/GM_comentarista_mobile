@@ -121,11 +121,13 @@ st.markdown("""
 
 /* ── Fondo global ── */
 .stApp { background: var(--bg); color: var(--text); }
-[data-testid="stSidebar"] { background: #0f0f1a; }
+[data-testid="stSidebar"] { background: var(--card) !important; color: var(--text) !important; }
 
-/* ── Ocultar decoraciones de Streamlit ── */
-#MainMenu, footer, header { visibility: hidden; }
-[data-testid="stToolbar"] { display: none; }
+/* ── Restaurar barra superior y menú para cambios manuales ── */
+#MainMenu { visibility: visible !important; }
+footer, header { visibility: hidden; }
+[data-testid="stToolbar"] { display: flex; opacity: 0.1; transition: opacity 0.3s; }
+[data-testid="stToolbar"]:hover { opacity: 1; }
 
 /* ── Título principal ── */
 .gm-header {
@@ -257,6 +259,19 @@ with st.expander("⚙️ Configuración", expanded=not st.session_state.get("con
                            label_visibility="collapsed")
     profile = PROFILES[sel_profile]
     st.caption(profile["desc"])
+    st.divider()
+
+    st.subheader("🎨 Tema Visual")
+    theme_choice = st.radio("Modo:", ["Automático", "Oscuro", "Claro"], horizontal=True, label_visibility="collapsed")
+    
+    # Inyectar CSS que fuerza el tema si no es automático
+    if theme_choice == "Oscuro":
+        st.markdown("<style>:root { --bg:#1a1a2e; --card:#16213e; --text:#eaeaea; --muted:#8892a4; }</style>", unsafe_allow_html=True)
+    elif theme_choice == "Claro":
+        st.markdown("<style>:root { --bg:#f5f7fa; --card:#ffffff; --text:#2d3748; --muted:#718096; }</style>", unsafe_allow_html=True)
+        st.markdown("<style>.gm-header { background: linear-gradient(135deg, #2b6cb0, #d69e2e); -webkit-background-clip: text; }</style>", unsafe_allow_html=True)
+        st.markdown("<style>.card, [data-testid='stMetric'] { background: #ffffff; border-color: rgba(74,144,217,0.3); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }</style>", unsafe_allow_html=True)
+
     st.divider()
 
     st.subheader("🧠 IA Gemini")
