@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Streamlit Chessboard</title>
+    <style>
+        /* Estilos críticos de chessboard.js inlined para evitar errores de carga */
+        .clearfix-7da63{clear:both}.board-b72b1{border:2px solid #404040;box-sizing:content-box}.square-55d63{float:left;position:relative;-webkit-touch-callout:none;-webkit-user-select:none;-khtml-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}.white-1e1d7{background-color:#f0d9b5;color:#b58863}.black-3c85d{background-color:#b58863;color:#f0d9b5}.highlight1-32417,.highlight2-9c5d2{box-shadow:inset 0 0 3px 3px #ff0}.notation-322f9{cursor:default;font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:14px;position:absolute}.alpha-d2270{bottom:1px;right:3px}.numeric-fc462{top:2px;left:2px}
+        
+        /* Estilos personalizados */
+        #board { width: 380px; margin: 0 auto; }
+        body { margin: 0; padding: 10px; overflow: hidden; background: transparent; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .loading { text-align: center; padding-top: 150px; color: #666; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="board"><div class="loading">Cargando tablero...</div></div>
+
+    <!-- Dependencias JS -->
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+
+    <script>
+        // API de Streamlit
+        function sendToStreamlit(value) {
+            window.parent.postMessage({
+                isStreamlitMessage: true,
+                type: "streamlit:setComponentValue",
+                value: value
+            }, "*");
+        }
+
+        function setHeight(h) {
+            window.parent.postMessage({
+                isStreamlitMessage: true,
+                type: "streamlit:setFrameHeight",
+                value: h || document.body.scrollHeight
+            }, "*");
+        }
+
+        var board = null;
+        var game = new Chess();
+
+        function onDragStart (source, piece, position, orientation) {
+            if (game.game_over()) return false;
+            if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
+                (game.turn() === 'b' && piece.search(/^w/) !== -1)) {
+                return false;
+            }
+        }
+
+        function onDrop (source, target) {
+            var move = game.move({
+                from: source,
+                to: target,
+                promotion: 'q'
+            });
+            if (move === null) return 'snapback';
+            // Enviar movimiento con timestamp para evitar procesamientos duplicados
+            sendToStreamlit({
+                move: move.from + move.to,
+                ts: Date.now()
+            });
+        }
+
+        function onSnapEnd () {
+            board.position(game.fen());
+        }
+
+        window.addEventListener("message", function(event) {
+            if (event.data.type === "streamlit:render") {
+                const fen = event.data.args.fen;
+                if (fen && fen !== game.fen()) {
+                    game.load(fen);
+                    if (board) board.position(fen);
+                }
+                setHeight();
+            }
+        });
+
+        // Inicialización Diferida
+        $(document).ready(function() {
+            var config = {
+                draggable: true,
+                position: 'start',
+                onDragStart: onDragStart,
+                onDrop: onDrop,
+                onSnapEnd: onSnapEnd,
+                pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
+            };
+            $('#board').empty();
+            board = Chessboard('board', config);
+            
+            // Notificar listo
+            window.parent.postMessage({
+                isStreamlitMessage: true,
+                type: "streamlit:componentReady",
+                apiVersion: 1
+            }, "*");
+            
+            // Forzar altura inicial
+            setTimeout(setHeight, 200);
+        });
+    </script>
+</body>
+</html>

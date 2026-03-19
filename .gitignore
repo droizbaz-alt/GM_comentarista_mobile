@@ -1,0 +1,46 @@
+# ── Claves y sesiones ────────────────────────────────────────────────────────
+cookie.txt
+*.cookie
+notebooklm*.txt
+secrets.toml
+.streamlit/secrets.toml
+*.env
+.env
+*.key
+*api_key*
+*Api Key*
+*apikey*
+
+# ── Base de datos y caché ────────────────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+__pycache__/
+*.pyc
+*.pyd
+*.pyo
+
+# ── Archivos de log y debug ──────────────────────────────────────────────────
+*.log
+last_ai_response.txt
+diagnostic_test.txt
+test_write*.txt
+pgn_errors.log
+
+# ── Ficheros de análisis y resultados personales ─────────────────────────────
+historial_analisis/
+*.pgn
+
+# ── Archivos temporales del sistema ─────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.tmp
+*.bak
+*.old
+*.old2
+*.old3
+
+# ── Entorno virtual de Python ────────────────────────────────────────────────
+venv/
+.venv/
+env/
