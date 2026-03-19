@@ -2,106 +2,389 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Streamlit Chessboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>GM Tablero Táctil</title>
     <style>
-        /* Estilos críticos de chessboard.js inlined para evitar errores de carga */
-        .clearfix-7da63{clear:both}.board-b72b1{border:2px solid #404040;box-sizing:content-box}.square-55d63{float:left;position:relative;-webkit-touch-callout:none;-webkit-user-select:none;-khtml-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}.white-1e1d7{background-color:#f0d9b5;color:#b58863}.black-3c85d{background-color:#b58863;color:#f0d9b5}.highlight1-32417,.highlight2-9c5d2{box-shadow:inset 0 0 3px 3px #ff0}.notation-322f9{cursor:default;font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:14px;position:absolute}.alpha-d2270{bottom:1px;right:3px}.numeric-fc462{top:2px;left:2px}
-        
-        /* Estilos personalizados */
-        #board { width: 380px; margin: 0 auto; }
-        body { margin: 0; padding: 10px; overflow: hidden; background: transparent; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-        .loading { text-align: center; padding-top: 150px; color: #666; font-weight: bold; }
+        /* ── Reset ── */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: transparent;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            touch-action: none;
+        }
+
+        /* ── Contenedor del tablero ── */
+        #board-wrap {
+            width: 100%;
+            max-width: 420px;
+            margin: 0 auto;
+            padding: 6px;
+        }
+
+        /* ── Tablero en sí ── */
+        #board-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            border: 3px solid #2c3e50;
+            border-radius: 4px;
+            overflow: hidden;
+            box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+            aspect-ratio: 1;
+            width: 100%;
+        }
+
+        /* ── Casillas ── */
+        .sq {
+            position: relative;
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            transition: background 0.12s;
+        }
+        .sq.light  { background: #f0d9b5; }
+        .sq.dark   { background: #b58863; }
+
+        /* ── Estados de selección y destino ── */
+        .sq.selected  { background: #7fc97a !important; }
+        .sq.legal     { background: rgba(100, 210, 100, 0.45) !important; }
+        .sq.last-from { background: rgba(255, 235, 59, 0.55) !important; }
+        .sq.last-to   { background: rgba(255, 235, 59, 0.45) !important; }
+
+        /* ── Dot indicador de movimiento legal (sin pieza) ── */
+        .sq.legal::after {
+            content: "";
+            position: absolute;
+            width: 30%;
+            height: 30%;
+            border-radius: 50%;
+            background: rgba(30, 150, 30, 0.55);
+        }
+        /* Si hay pieza en casilla legal, usar un anillo en lugar de punto */
+        .sq.legal.has-piece::after {
+            width: 88%;
+            height: 88%;
+            background: transparent;
+            border: 4px solid rgba(30, 150, 30, 0.7);
+        }
+
+        /* ── Piezas ── */
+        .piece {
+            width: 88%;
+            height: 88%;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            pointer-events: none;
+            filter: drop-shadow(0 2px 3px rgba(0,0,0,0.4));
+            transition: transform 0.12s;
+        }
+        .sq.selected .piece { transform: scale(1.12); }
+
+        /* ── Notación algebraica ── */
+        .notation {
+            position: absolute;
+            font-size: clamp(7px, 1.5vw, 11px);
+            font-weight: 700;
+            pointer-events: none;
+            line-height: 1;
+            opacity: 0.75;
+        }
+        .notation.file { bottom: 2px; right: 3px; }
+        .notation.rank { top: 2px; left: 3px; }
+        .sq.light .notation { color: #b58863; }
+        .sq.dark  .notation { color: #f0d9b5; }
+
+        /* ── Panel de estado ── */
+        #status-bar {
+            text-align: center;
+            padding: 5px 4px 2px;
+            font-size: 0.78rem;
+            color: #aaa;
+            min-height: 22px;
+        }
+        #status-bar .turn { font-weight: 700; color: #eaeaea; }
+
+        /* ── Panel de promoción ── */
+        #promo-panel {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #1a1a2e;
+            border: 2px solid #4A90D9;
+            border-radius: 12px;
+            padding: 12px;
+            z-index: 100;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.7);
+        }
+        #promo-panel p { color: #eaeaea; text-align: center; margin-bottom: 8px; font-size: 0.85rem; }
+        #promo-panel button {
+            font-size: 2rem;
+            background: #16213e;
+            border: 1px solid #4A90D9;
+            border-radius: 8px;
+            padding: 6px 10px;
+            margin: 3px;
+            cursor: pointer;
+            color: white;
+        }
+        #promo-panel button:active { background: #4A90D9; }
     </style>
 </head>
 <body>
-    <div id="board"><div class="loading">Cargando tablero...</div></div>
+<div id="board-wrap">
+    <div id="status-bar"><span class="turn">Turno: ♙ Blancas</span></div>
+    <div id="board-grid"></div>
+    <div id="promo-panel">
+        <p>Elegir promoción:</p>
+        <div id="promo-choices"></div>
+    </div>
+</div>
 
-    <!-- Dependencias JS -->
-    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-    <script src="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+<script>
+// ── Config ──────────────────────────────────────────────────────────────────
+const PIECE_BASE = "https://chessboardjs.com/img/chesspieces/wikipedia/";
+const PIECE_IMG  = p => `${PIECE_BASE}${p}.png`;
 
-    <script>
-        // API de Streamlit
-        function sendToStreamlit(value) {
-            window.parent.postMessage({
-                isStreamlitMessage: true,
-                type: "streamlit:setComponentValue",
-                value: value
-            }, "*");
-        }
+// chess.js piece code → image filename
+const PC = { K:"wK",Q:"wQ",R:"wR",B:"wB",N:"wN",P:"wP",
+             k:"bK",q:"bQ",r:"bR",b:"bB",n:"bN",p:"bP" };
 
-        function setHeight(h) {
-            window.parent.postMessage({
-                isStreamlitMessage: true,
-                type: "streamlit:setFrameHeight",
-                value: h || document.body.scrollHeight
-            }, "*");
-        }
+// ── State ────────────────────────────────────────────────────────────────────
+const game = new Chess();
+let selected   = null;   // square string e.g. "e2"
+let legalMoves = [];     // squares the selected piece can reach
+let pendingPromo = null; // { from, to } awaiting promotion choice
+let lastFrom = null, lastTo = null;
 
-        var board = null;
-        var game = new Chess();
+// ── Streamlit messaging ──────────────────────────────────────────────────────
+function sendMove(uci) {
+    window.parent.postMessage({
+        isStreamlitMessage: true,
+        type: "streamlit:setComponentValue",
+        value: { move: uci, ts: Date.now() }
+    }, "*");
+}
+function setHeight() {
+    window.parent.postMessage({
+        isStreamlitMessage: true,
+        type: "streamlit:setFrameHeight",
+        value: document.body.scrollHeight
+    }, "*");
+}
 
-        function onDragStart (source, piece, position, orientation) {
-            if (game.game_over()) return false;
-            if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
-                (game.turn() === 'b' && piece.search(/^w/) !== -1)) {
-                return false;
+// ── Build board DOM ──────────────────────────────────────────────────────────
+const grid = document.getElementById("board-grid");
+
+function sqLabel(file, rank) {
+    return String.fromCharCode(97 + file) + (rank + 1);
+}
+
+function buildBoard() {
+    grid.innerHTML = "";
+    for (let r = 7; r >= 0; r--) {
+        for (let f = 0; f < 8; f++) {
+            const sq = sqLabel(f, r);
+            const cell = document.createElement("div");
+            cell.className = "sq " + ((r + f) % 2 === 0 ? "dark" : "light");
+            cell.dataset.sq = sq;
+
+            // Notation labels
+            if (f === 7) {
+                const rn = document.createElement("span");
+                rn.className = "notation rank";
+                rn.textContent = r + 1;
+                cell.appendChild(rn);
             }
-        }
+            if (r === 0) {
+                const fn = document.createElement("span");
+                fn.className = "notation file";
+                fn.textContent = String.fromCharCode(97 + f);
+                cell.appendChild(fn);
+            }
 
-        function onDrop (source, target) {
-            var move = game.move({
-                from: source,
-                to: target,
-                promotion: 'q'
-            });
-            if (move === null) return 'snapback';
-            // Enviar movimiento con timestamp para evitar procesamientos duplicados
-            sendToStreamlit({
-                move: move.from + move.to,
-                ts: Date.now()
-            });
+            // Touch + click handler
+            cell.addEventListener("pointerdown", onSquareTap);
+            grid.appendChild(cell);
         }
+    }
+}
 
-        function onSnapEnd () {
-            board.position(game.fen());
+// ── Render pieces ─────────────────────────────────────────────────────────────
+function render() {
+    // Clear highlights and pieces
+    document.querySelectorAll(".sq").forEach(el => {
+        el.classList.remove("selected", "legal", "last-from", "last-to", "has-piece");
+        const piece = el.querySelector(".piece");
+        if (piece) piece.remove();
+    });
+
+    // Draw pieces
+    const pos = game.board();
+    pos.forEach((row, ri) => {
+        row.forEach((pc, fi) => {
+            if (!pc) return;
+            const sq = sqLabel(fi, 7 - ri);
+            const cell = document.querySelector(`.sq[data-sq="${sq}"]`);
+            if (!cell) return;
+            const img = document.createElement("div");
+            img.className = "piece";
+            const key = pc.color === "w" ? pc.type.toUpperCase() : pc.type;
+            img.style.backgroundImage = `url("${PIECE_IMG(PC[key])}")`;
+            cell.appendChild(img);
+            cell.classList.add("has-piece");
+        });
+    });
+
+    // Highlight last move
+    if (lastFrom) document.querySelector(`.sq[data-sq="${lastFrom}"]`)?.classList.add("last-from");
+    if (lastTo)   document.querySelector(`.sq[data-sq="${lastTo}"]`)?.classList.add("last-to");
+
+    // Highlight selected
+    if (selected) {
+        document.querySelector(`.sq[data-sq="${selected}"]`)?.classList.add("selected");
+        legalMoves.forEach(sq => {
+            const cell = document.querySelector(`.sq[data-sq="${sq}"]`);
+            if (cell) cell.classList.add("legal");
+        });
+    }
+
+    updateStatus();
+    setTimeout(setHeight, 100);
+}
+
+// ── Status bar ────────────────────────────────────────────────────────────────
+function updateStatus() {
+    const bar = document.getElementById("status-bar");
+    if (game.in_checkmate())      bar.innerHTML = `<span class="turn">¡Jaque mate!</span>`;
+    else if (game.in_stalemate()) bar.innerHTML = `<span class="turn">Tablas (ahogado)</span>`;
+    else if (game.in_draw())      bar.innerHTML = `<span class="turn">Tablas</span>`;
+    else {
+        const who   = game.turn() === "w" ? "♙ Blancas" : "♟ Negras";
+        const check = game.in_check() ? " · ¡Jaque!" : "";
+        bar.innerHTML = `<span class="turn">Turno: ${who}${check}</span>`;
+    }
+}
+
+// ── Tap handler ───────────────────────────────────────────────────────────────
+function onSquareTap(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const sq   = e.currentTarget.dataset.sq;
+    const pc   = game.get(sq);
+    const turn = game.turn();
+
+    // Nothing selected yet → select piece of current player
+    if (!selected) {
+        if (!pc || pc.color !== turn) return;
+        selected   = sq;
+        legalMoves = game.moves({ square: sq, verbose: true }).map(m => m.to);
+        render();
+        return;
+    }
+
+    // Already selected
+    if (selected === sq) {
+        // Tap same square → deselect
+        selected   = null;
+        legalMoves = [];
+        render();
+        return;
+    }
+
+    // Tap another own piece → switch selection
+    if (pc && pc.color === turn) {
+        selected   = sq;
+        legalMoves = game.moves({ square: sq, verbose: true }).map(m => m.to);
+        render();
+        return;
+    }
+
+    // Attempt move
+    if (legalMoves.includes(sq)) {
+        // Check pawn promotion
+        const movingPc = game.get(selected);
+        const isPromo  = movingPc && movingPc.type === "p" &&
+                         ((turn === "w" && sq[1] === "8") || (turn === "b" && sq[1] === "1"));
+        if (isPromo) {
+            pendingPromo = { from: selected, to: sq };
+            selected = null; legalMoves = [];
+            showPromoPanel(turn);
+            return;
         }
+        doMove(selected, sq, "q");
+    } else {
+        // Illegal → deselect
+        selected   = null;
+        legalMoves = [];
+        render();
+    }
+}
 
-        window.addEventListener("message", function(event) {
-            if (event.data.type === "streamlit:render") {
-                const fen = event.data.args.fen;
-                if (fen && fen !== game.fen()) {
-                    game.load(fen);
-                    if (board) board.position(fen);
-                }
-                setHeight();
+function doMove(from, to, promo) {
+    const move = game.move({ from, to, promotion: promo });
+    if (!move) { selected = null; legalMoves = []; render(); return; }
+    lastFrom = from; lastTo = to;
+    selected = null; legalMoves = [];
+    sendMove(from + to + (promo && promo !== "q" ? promo : ""));
+    render();
+}
+
+// ── Promotion panel ───────────────────────────────────────────────────────────
+function showPromoPanel(color) {
+    const panel   = document.getElementById("promo-panel");
+    const choices = document.getElementById("promo-choices");
+    choices.innerHTML = "";
+    const pieces = ["q", "r", "b", "n"];
+    const emojis = { q:"♛", r:"♜", b:"♝", n:"♞" };
+    pieces.forEach(p => {
+        const btn = document.createElement("button");
+        btn.textContent = color === "w" ? emojis[p].replace(/[♛♜♝♞]/g,
+            c => ({♛:"♕",♜:"♖",♝:"♗",♞:"♘"}[c])) : emojis[p];
+        btn.addEventListener("click", () => {
+            panel.style.display = "none";
+            if (pendingPromo) {
+                doMove(pendingPromo.from, pendingPromo.to, p);
+                pendingPromo = null;
             }
         });
+        choices.appendChild(btn);
+    });
+    panel.style.display = "block";
+}
 
-        // Inicialización Diferida
-        $(document).ready(function() {
-            var config = {
-                draggable: true,
-                position: 'start',
-                onDragStart: onDragStart,
-                onDrop: onDrop,
-                onSnapEnd: onSnapEnd,
-                pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
-            };
-            $('#board').empty();
-            board = Chessboard('board', config);
-            
-            // Notificar listo
-            window.parent.postMessage({
-                isStreamlitMessage: true,
-                type: "streamlit:componentReady",
-                apiVersion: 1
-            }, "*");
-            
-            // Forzar altura inicial
-            setTimeout(setHeight, 200);
-        });
-    </script>
+// ── Streamlit render message ──────────────────────────────────────────────────
+window.addEventListener("message", function(event) {
+    if (event.data.type === "streamlit:render") {
+        const fen = event.data.args.fen;
+        if (fen && fen !== game.fen()) {
+            game.load(fen);
+            selected   = null;
+            legalMoves = [];
+            lastFrom   = null;
+            lastTo     = null;
+        }
+        render();
+    }
+});
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+buildBoard();
+render();
+
+// Notify Streamlit ready
+window.parent.postMessage({
+    isStreamlitMessage: true,
+    type: "streamlit:componentReady",
+    apiVersion: 1
+}, "*");
+</script>
 </body>
 </html>

@@ -383,7 +383,14 @@ with tab_crear:
 # ─── Análisis ───────────────────────────────────────────────────────────────
 if st.session_state.pgn_to_analyze:
     st.divider()
-    st.success("✅ Partida cargada — lista para analizar")
+    col_ok, col_clear = st.columns([3, 1])
+    col_ok.success("✅ Partida cargada — lista para analizar")
+    if col_clear.button("🗑️ Limpiar", use_container_width=True, help="Descartar esta partida y cargar otra"):
+        st.session_state.pgn_to_analyze = None
+        st.session_state.output_pgn     = None
+        st.session_state.viewer_game    = None
+        st.session_state.viewer_node    = None
+        st.rerun()
 
     if st.button("🚀 Generar Comentarios", type="primary", use_container_width=True):
         st.session_state.output_pgn    = None
@@ -565,8 +572,9 @@ if st.session_state.output_pgn:
     with st.expander("📋 Ver PGN completo"):
         st.text_area("", value=st.session_state.output_pgn, height=300)
 
-    if st.button("🗑️ Nueva partida", use_container_width=True):
-        st.session_state.output_pgn    = None
-        st.session_state.viewer_game   = None
-        st.session_state.viewer_node   = None
+    if st.button("🔄 Nueva partida", use_container_width=True):
+        st.session_state.output_pgn     = None
+        st.session_state.pgn_to_analyze = None
+        st.session_state.viewer_game    = None
+        st.session_state.viewer_node    = None
         st.rerun()
