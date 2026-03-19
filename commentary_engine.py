@@ -430,7 +430,7 @@ class CommentaryEngine:
             )
 
             theory_info = ""
-            if d['m'] <= 25:
+            if d['m'] <= 12: # Reducido de 25 a 12 para evitar exceso de peticiones a Lichess
                 stats, _ = lichess_api.get_opening_stats(d['fen'])
                 if stats and stats.get('moves'):
                     for m in stats['moves']:

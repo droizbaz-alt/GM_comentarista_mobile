@@ -1,6 +1,7 @@
 import requests
 import json
 import time
+import streamlit as st
 
 def get_game_pgn(game_id):
     game_id = game_id.split("/")[-1]
@@ -34,6 +35,7 @@ def format_game_label(game, target_username):
         return f"[{res}] como {playing_as} vs {opponent} ({game.get('speed', 'chess')}) - ID: {game.get('id', '')}"
     except: return f"Partida {game.get('id', 'desconocida')}"
 
+@st.cache_data(ttl=86400, max_entries=1000, show_spinner=False)
 def get_opening_stats(fen, mode="lichess"):
     url = f"https://explorer.lichess.ovh/{mode}"
     try:

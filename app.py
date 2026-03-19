@@ -185,9 +185,9 @@ st.markdown('<div class="gm-sub">Análisis pedagógico con IA · Nivel Gran Maes
 
 # ─── Sidebar: Configuración ─────────────────────────────────────────────────
 PROFILES = {
-    "⚡ Rápido":   {"depth": 12, "threads": 1, "critical_threshold": 1.0,  "quality": "Básica",  "desc": "Análisis rápido."},
-    "⚖️ Estándar": {"depth": 16, "threads": 2, "critical_threshold": 0.75, "quality": "Media",   "desc": "Equilibrio velocidad/calidad. ✅"},
-    "🏆 Profundo": {"depth": 20, "threads": 2, "critical_threshold": 0.5,  "quality": "Alta",    "desc": "Análisis exhaustivo con modelos Pro."},
+    "⚡ Rápido":   {"depth": 10, "threads": 1, "critical_threshold": 1.0,  "quality": "Básica",  "desc": "Análisis rápido y ligero."},
+    "⚖️ Estándar": {"depth": 14, "threads": 1, "critical_threshold": 0.75, "quality": "Media",   "desc": "Equilibrio. Ideal para móvil. ✅"},
+    "🏆 Profundo": {"depth": 18, "threads": 2, "critical_threshold": 0.5,  "quality": "Alta",    "desc": "Análisis exhaustivo (usa más recursos)."},
 }
 
 with st.expander("⚙️ Configuración", expanded=not st.session_state.get("config_done", False)):
@@ -414,7 +414,7 @@ if st.session_state.pgn_to_analyze:
         try:
             start_time = time.time()
             engine = chess.engine.SimpleEngine.popen_uci(STOCKFISH_PATH, timeout=30.0)
-            engine.configure({"Threads": threads})
+            engine.configure({"Threads": threads, "Hash": 16}) # Limitamos el uso de RAM (Hash) para Streamlit Cloud
 
             commentator = CommentaryEngine(
                 engine, depth=depth, api_key=api_key,
