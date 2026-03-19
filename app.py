@@ -184,29 +184,37 @@ st.markdown('<div class="gm-header">♟️ GM Comentarista</div>', unsafe_allow_
 st.markdown('<div class="gm-sub">Análisis pedagógico con IA · Nivel Gran Maestro</div>', unsafe_allow_html=True)
 
 # ─── Sidebar: Configuración ─────────────────────────────────────────────────
-with st.sidebar:
-    st.header("⚙️ Configuración")
+PROFILES = {
+    "⚡ Rápido":   {"depth": 12, "threads": 1, "critical_threshold": 1.0,  "quality": "Básica",  "desc": "Análisis rápido."},
+    "⚖️ Estándar": {"depth": 16, "threads": 2, "critical_threshold": 0.75, "quality": "Media",   "desc": "Equilibrio velocidad/calidad. ✅"},
+    "🏆 Profundo": {"depth": 20, "threads": 2, "critical_threshold": 0.5,  "quality": "Alta",    "desc": "Análisis exhaustivo con modelos Pro."},
+}
 
-    # Perfiles de análisis
-    PROFILES = {
-        "⚡ Rápido":   {"depth": 12, "threads": 1, "critical_threshold": 1.0,  "quality": "Básica",  "desc": "Ideal para revisar rápidamente."},
-        "⚖️ Estándar": {"depth": 16, "threads": 2, "critical_threshold": 0.75, "quality": "Media",   "desc": "Equilibrio velocidad/calidad. ✅"},
-        "🏆 Profundo": {"depth": 20, "threads": 2, "critical_threshold": 0.5,  "quality": "Alta",    "desc": "Análisis exhaustivo con modelos Pro."},
-    }
-    sel_profile = st.radio("Perfil", list(PROFILES.keys()), index=1)
+with st.expander("⚙️ Configuración", expanded=not st.session_state.get("config_done", False)):
+    st.subheader("Perfil de Análisis")
+    sel_profile = st.radio("", list(PROFILES.keys()), index=1, horizontal=True,
+                           label_visibility="collapsed")
     profile = PROFILES[sel_profile]
     st.caption(profile["desc"])
     st.divider()
 
-    st.header("🧠 IA Gemini")
-    use_ai   = st.checkbox("Activar comentarios", value=True)
-    api_key  = st.text_input("API Key de Gemini", type="password",
-                             help="Consigue tu clave gratis en aistudio.google.com")
-    use_hybrid = st.checkbox("🚀 Modo Híbrido", value=True,
+    st.subheader("🧠 IA Gemini")
+    # Si hay clave en Streamlit Secrets, úsala automáticamente
+    api_key_secret = os.environ.get("GEMINI_API_KEY", "")
+    if api_key_secret:
+        st.success("🔑 API Key cargada automáticamente desde Secrets")
+        api_key = api_key_secret
+        use_ai  = True
+    else:
+        use_ai  = st.checkbox("Activar comentarios con IA", value=True)
+        api_key = st.text_input("🔑 API Key de Gemini", type="password",
+                                placeholder="Pega aquí tu clave de Google AI Studio",
+                                help="Consigue tu clave gratis en aistudio.google.com")
+    use_hybrid = st.checkbox("🚀 Modo Híbrido (recomendado)", value=True,
                              help="Modelos rápidos para jugadas normales + Pro para momentos críticos.")
     st.divider()
 
-    st.header("💾 Caché")
+    st.subheader("💾 Caché")
     use_cache = st.checkbox("Activar caché de IA", value=True)
     if use_cache:
         from cache_manager import CacheManager
@@ -218,7 +226,7 @@ with st.sidebar:
                 st.success("Caché vaciada")
                 st.rerun()
 
-    # Valores base desde el perfil
+    # Valores del perfil
     depth              = profile["depth"]
     threads            = profile["threads"]
     critical_threshold = profile["critical_threshold"]
@@ -226,9 +234,9 @@ with st.sidebar:
     ai_lite_model      = QUALITY_PROFILES[quality]["lite"]
     ai_pro_model       = QUALITY_PROFILES[quality]["pro"]
 
-    with st.expander("🔬 Ajustes Avanzados"):
-        depth             = st.slider("Profundidad Stockfish", 10, 24, depth)
-        threads           = st.slider("Hilos CPU", 1, 4, threads)
+    with st.expander("🔌 Ajustes Avanzados"):
+        depth              = st.slider("Profundidad Stockfish", 10, 24, depth)
+        threads            = st.slider("Hilos CPU", 1, 4, threads)
         critical_threshold = st.slider("Umbral Crítico", 0.1, 2.0, critical_threshold, 0.05)
         model_options = [
             "gemini-3.1-flash-lite-preview", "gemma-3-27b-it",
@@ -247,6 +255,9 @@ with st.sidebar:
             with open(prompt_file, "w", encoding="utf-8") as f:
                 f.write(new_prompt)
             st.success("Guardado.")
+
+    st.session_state["config_done"] = True
+
 
 # ─── Session state ──────────────────────────────────────────────────────────
 for key, default in {
