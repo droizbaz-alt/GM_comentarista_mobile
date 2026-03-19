@@ -16,6 +16,9 @@ import re
 import datetime
 import warnings
 
+import json
+import streamlit.components.v1 as components
+
 from commentary_engine import CommentaryEngine
 from ai_client import AIClient, QUALITY_PROFILES
 import lichess_api
@@ -54,17 +57,66 @@ st.set_page_config(
     initial_sidebar_state="collapsed",   # 📱 sidebar cerrada por defecto en móvil
 )
 
+# ─── PWA & Funciones Nativas Móviles (Vibración y Almacenamiento Local) ───────
+components.html("""
+<script>
+// PWA Manifest y compatibilidad iOS
+const manifest = {
+  "name": "GM Comentarista", "short_name": "GM Móvil",
+  "theme_color": "#1a1a2e", "background_color": "#1a1a2e",
+  "display": "standalone", "orientation": "portrait",
+  "start_url": "/", "scope": "/",
+  "icons": [{"src": "https://cdn-icons-png.flaticon.com/512/811/811462.png", "sizes": "512x512", "type": "image/png"}]
+};
+const blob = new Blob([JSON.stringify(manifest)], {type: 'application/manifest+json'});
+const manifestURL = URL.createObjectURL(blob);
+let link = window.parent.document.querySelector('link[rel="manifest"]');
+if (!link) { link = window.parent.document.createElement('link'); link.rel = 'manifest'; window.parent.document.head.appendChild(link); }
+link.href = manifestURL;
+
+if (!window.parent.document.querySelector('meta[name="apple-mobile-web-app-capable"]')) {
+    const meta1 = window.parent.document.createElement('meta'); meta1.name = "apple-mobile-web-app-capable"; meta1.content = "yes"; window.parent.document.head.appendChild(meta1);
+}
+</script>
+""", height=0, width=0)
+
+if st.session_state.get("analysis_just_finished", False):
+    st.session_state.analysis_just_finished = False
+    pgn_encoded = json.dumps(st.session_state.output_pgn or "Ningún análisis generado")
+    components.html(f"""
+    <script>
+      // Vibrar un patrón corto si el móvil lo soporta
+      if (window.parent.navigator.vibrate) window.parent.navigator.vibrate([200, 100, 200]);
+      // Guardar el texto físicamente en la memoria caché del móvil (LocalStorage)
+      window.parent.localStorage.setItem('last_gm_analysis', {pgn_encoded});
+    </script>
+    """, height=0, width=0)
+
 # ─── CSS Mobile-First ───────────────────────────────────────────────────────
 st.markdown("""
 <style>
-/* ── Variables de color ── */
+/* ── Variables de color dinámico ── */
 :root {
     --accent: #4A90D9;
     --accent2: #e8b84b;
-    --bg: #1a1a2e;
-    --card: #16213e;
-    --text: #eaeaea;
-    --muted: #8892a4;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #1a1a2e;
+        --card: #16213e;
+        --text: #eaeaea;
+        --muted: #8892a4;
+    }
+}
+
+@media (prefers-color-scheme: light) {
+    :root {
+        --bg: #f5f7fa;
+        --card: #ffffff;
+        --text: #2d3748;
+        --muted: #718096;
+    }
 }
 
 /* ── Fondo global ── */
@@ -85,6 +137,10 @@ st.markdown("""
     background: linear-gradient(135deg, var(--accent), var(--accent2));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
+}
+@media (prefers-color-scheme: light) {
+    .gm-header { background: linear-gradient(135deg, #2b6cb0, #d69e2e); -webkit-background-clip: text; }
+    .card { background: #ffffff; border-color: rgba(74,144,217,0.3); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
 }
 .gm-sub {
     text-align: center;
@@ -171,7 +227,9 @@ iframe[title="chess_board"] {
     background: var(--card);
     border-radius: 10px;
     padding: 0.75rem;
-    border: 1px solid rgba(74,144,217,0.15);
+}
+@media (prefers-color-scheme: light) {
+    [data-testid="stMetric"] { border: 1px solid rgba(74,144,217,0.3); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
 }
 
 /* ── Sidebar overlay en móvil ── */
@@ -342,6 +400,25 @@ with tab_historial:
                 st.session_state.output_pgn     = st.session_state.pgn_to_analyze
     else:
         st.caption("No hay análisis guardados en esta carpeta.")
+        
+    st.divider()
+    st.markdown("### 💾 Guardado Offline (LocalStorage)")
+    components.html("""
+    <div style="font-family:sans-serif;">
+      <button onclick="
+         const pgn = window.parent.localStorage.getItem('last_gm_analysis');
+         if(pgn) {
+             document.getElementById('ta').value = pgn;
+             document.getElementById('ta').style.display = 'block';
+         } else {
+             alert('No hay PGN offline en el navegador de este dispositivo.');
+         }
+      " style="width:100%; padding:12px; background:#4A90D9; color:white; border:none; border-radius:10px; font-size:1rem; cursor:pointer;">
+      📥 Recuperar último PGN Offline
+      </button>
+      <textarea id="ta" style="display:none; width:100%; height:180px; margin-top:8px; border-radius:8px; padding:10px; border:1px solid #ccc; font-family:monospace;" readonly></textarea>
+    </div>
+    """, height=250)
 
 with tab_crear:
     st.subheader("✏️ Crear Partida")
@@ -486,6 +563,7 @@ if st.session_state.pgn_to_analyze:
 
             status_text.success("✅ ¡Análisis completado!")
             progress_bar.progress(1.0)
+            st.session_state.analysis_just_finished = True
             st.rerun()
 
         except FileNotFoundError:
