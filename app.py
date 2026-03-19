@@ -456,6 +456,10 @@ if st.session_state.pgn_to_analyze:
             if commentator.last_error:
                 st.session_state.last_ai_error = commentator.last_error
 
+            # Generar nombre de archivo estable (una sola vez)
+            ts_str = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+            st.session_state["output_pgn_filename"] = f"gm_analisis_{ts_str}.pgn"
+
             update_progress(0, None, status="saving")
             engine.quit()
 
@@ -464,7 +468,7 @@ if st.session_state.pgn_to_analyze:
                 hist_root = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                          "historial_analisis", "General")
                 os.makedirs(hist_root, exist_ok=True)
-                fn = f"analisis_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.pgn"
+                fn = st.session_state["output_pgn_filename"]
                 with open(os.path.join(hist_root, fn), "w", encoding="utf-8") as f:
                     f.write(st.session_state.output_pgn)
             except Exception:
@@ -574,10 +578,11 @@ if st.session_state.output_pgn:
 
     # ── Descarga ─────────────────────────────────────────────────────────────
     st.divider()
+    pgn_filename = st.session_state.get("output_pgn_filename", "gm_analisis.pgn")
     st.download_button(
         "📥 Descargar PGN Comentado",
         st.session_state.output_pgn,
-        f"gm_analisis_{int(time.time())}.pgn",
+        pgn_filename,
         use_container_width=True,
     )
     with st.expander("📋 Ver PGN completo"):
