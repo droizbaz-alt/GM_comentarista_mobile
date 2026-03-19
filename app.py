@@ -120,6 +120,9 @@ iframe[title="chess_board"] {
     color: white;
     border: none;
     transition: transform .15s, box-shadow .15s;
+    touch-action: manipulation; /* Evita doble-taps accidentales al hacer scroll */
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
 }
 .stButton > button:active {
     transform: scale(0.97);
@@ -129,7 +132,7 @@ iframe[title="chess_board"] {
 }
 
 /* ── Sliders y selects más grandes ── */
-.stSlider [data-baseweb="slider"] { cursor: pointer; }
+.stSlider [data-baseweb="slider"] { cursor: pointer; touch-action: none; }
 .stSlider > div { padding: 0.5rem 0; }
 .stSelectbox select { font-size: 1rem; min-height: 44px; }
 .stTextInput input { min-height: 44px; font-size: 1rem; border-radius: 8px; }
@@ -404,6 +407,13 @@ if st.session_state.pgn_to_analyze:
         st.rerun()
 
     if st.button("🚀 Generar Comentarios", type="primary", use_container_width=True):
+        # Inyectar CSS que bloquea los toques accidentales en todo el panel de la app
+        # mientras el análisis está en curso. Evita los reinicios fantasmas del móvil.
+        st.markdown("""<style>
+            .stButton > button, .stSlider { pointer-events: none !important; filter: brightness(0.6) grayscale(0.2); }
+            iframe { pointer-events: none !important; }
+        </style>""", unsafe_allow_html=True)
+
         st.session_state.output_pgn    = None
         st.session_state.last_ai_error = None
 
