@@ -57,7 +57,7 @@ export default function GameContainer() {
 
   // Inputs
   const [pgnInput, setPgnInput] = useState('');
-  const [lichessQuery, setLichessQuery] = useState('');
+  const [usernameQuery, setUsernameQuery] = useState('');
   const [remoteGames, setRemoteGames] = useState<any[]>([]);
 
   useEffect(() => {
@@ -67,6 +67,33 @@ export default function GameContainer() {
     // @ts-ignore
     window.GM_VERSION = '1.0.7';
   }, []);
+
+  const fetchRemoteGames = async () => {
+    if (!usernameQuery) return;
+    setIsLoading(true);
+    try {
+        const endpoint = importMode === 'lichess' ? '/api/lichess/user' : '/api/chesscom/user';
+        const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: usernameQuery })
+        });
+        const data = await res.json();
+        setRemoteGames(data.games || []);
+    } catch (e) { alert(`Error buscando en ${importMode}`); }
+    setIsLoading(false);
+  };
+
+  const loadFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const text = e.target?.result as string;
+        loadPgnText(text);
+    };
+    reader.readAsText(file);
+  };
 
   const updatePositionEval = async (fen: string) => {
     try {
@@ -274,6 +301,7 @@ export default function GameContainer() {
           <div className="tabs" style={{ marginBottom: '1rem', background: 'rgba(0,0,0,0.2)', padding: '4px', borderRadius: '12px' }}>
             <button className={`tab ${importMode === 'pgn' ? 'active' : ''}`} onClick={() => setImportMode('pgn')} style={{ flex: 1 }}><Monitor size={14} /></button>
             <button className={`tab ${importMode === 'lichess' ? 'active' : ''}`} onClick={() => setImportMode('lichess')} style={{ flex: 1 }}>L</button>
+            <button className={`tab ${importMode === 'chesscom' ? 'active' : ''}`} onClick={() => setImportMode('chesscom')} style={{ flex: 1 }}>C</button>
             <button className={`tab ${importMode === 'file' ? 'active' : ''}`} onClick={() => setImportMode('file')} style={{ flex: 1 }}><Upload size={14} /></button>
           </div>
 
@@ -288,6 +316,40 @@ export default function GameContainer() {
                 onChange={(e) => setPgnInput(e.target.value)}
               />
               <button className="btn btn-primary" onClick={() => loadPgnText(pgnInput)}>Cargar Texto</button>
+            </div>
+          )}
+
+          {(importMode === 'lichess' || importMode === 'chesscom') && (
+            <div className="animate-fade-in">
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '1rem' }}>
+                    <input 
+                        className="input" 
+                        placeholder={`Usuario de ${importMode}...`}
+                        value={usernameQuery}
+                        onChange={(e) => setUsernameQuery(e.target.value)}
+                    />
+                    <button className="btn btn-primary" onClick={fetchRemoteGames} disabled={isLoading}>
+                        {isLoading ? <Loader2 className="animate-spin" size={16} /> : <Search size={16} />}
+                    </button>
+                </div>
+                {remoteGames.length > 0 && (
+                    <div className="pgn-scroll" style={{ maxHeight: '150px' }}>
+                        {remoteGames.map((g: any, i) => (
+                            <div key={i} className="list-item" onClick={() => loadPgnText(g.pgn)} style={{ padding: '8px', borderBottom: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer', fontSize: '0.75rem' }}>
+                                {g.label}
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+          )}
+
+          {importMode === 'file' && (
+            <div className="animate-fade-in" style={{ textAlign: 'center', padding: '1rem' }}>
+                <input type="file" id="pgnfile" accept=".pgn" onChange={loadFile} style={{ display: 'none' }} />
+                <label htmlFor="pgnfile" className="btn btn-secondary" style={{ cursor: 'pointer' }}>
+                    <Upload size={18} /> Seleccionar PGN
+                </label>
             </div>
           )}
         </div>

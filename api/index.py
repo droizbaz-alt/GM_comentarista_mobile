@@ -143,6 +143,24 @@ def lichess_user():
         })
     return jsonify({"games": formatted})
 
+@app.route('/api/chesscom/user', methods=['POST'])
+@app.route('/chesscom/user', methods=['POST'])
+def chesscom_user():
+    from chesscom_api import get_user_last_games_chesscom
+    data = request.json
+    username = data.get('username')
+    games, error = get_user_last_games_chesscom(username)
+    if error: return jsonify({"error": error}), 400
+    
+    formatted = []
+    for g in games:
+        formatted.append({
+            "id": g.get("url"),
+            "label": f"Chess.com: {g.get('white', {}).get('username')} vs {g.get('black', {}).get('username')} ({g.get('time_control', '')})",
+            "pgn": g.get("pgn")
+        })
+    return jsonify({"games": formatted})
+
 # Soporte para Lichess single game
 @app.route('/api/lichess/game', methods=['POST'])
 @app.route('/lichess/game', methods=['POST'])
