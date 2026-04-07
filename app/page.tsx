@@ -27,8 +27,8 @@ import {
 } from 'lucide-react';
 
 export default function Home() {
-  const [game, setGame] = useState(new Chess());
-  const [currentFen, setCurrentFen] = useState(game.fen());
+  const [game, setGame] = useState<Chess | null>(null);
+  const [currentFen, setCurrentFen] = useState('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
   const [history, setHistory] = useState<string[]>([]);
   const [commentary, setCommentary] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState('import');
@@ -36,6 +36,11 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
 
   const [pgnInput, setPgnInput] = useState('');
+
+  // Client-side only initialization
+  useEffect(() => {
+    setGame(new Chess());
+  }, []);
 
   // Sync state with chess game
   const updateBoard = useCallback((newGame: Chess) => {
@@ -46,6 +51,7 @@ export default function Home() {
 
   // Handle board move
   const onMove = (orig: string, dest: string) => {
+    if (!game) return;
     try {
       const newGame = new Chess(game.fen());
       const move = newGame.move({ from: orig, to: dest, promotion: 'q' });
@@ -58,6 +64,7 @@ export default function Home() {
   };
 
   const loadPgn = () => {
+    if (!game) return;
     try {
       const newGame = new Chess();
       newGame.loadPgn(pgnInput);
@@ -69,6 +76,7 @@ export default function Home() {
   };
 
   const startAnalysis = async () => {
+    if (!game) return;
     setIsAnalyzing(true);
     setProgress(0);
     
