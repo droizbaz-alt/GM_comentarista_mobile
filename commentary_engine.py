@@ -262,18 +262,41 @@ class CommentaryEngine:
     def commentate_preanalyzed_game(self, game, metadata, critical_moments, callback=None):
         """
         Versión para Serveless: Recibe la partida y la evaluación ya calculada del cliente.
-        Esto evita tener que correr Stockfish en el servidor (Vercel).
+        Esto asegura que las variantes tácticas existan ANTES de llamar a la IA.
         """
+        # Fase 1: Inyección Técnica (Variantes de Stockfish en momentos críticos)
+        for m_idx in critical_moments:
+            try:
+                data_moment = metadata[m_idx]
+                pv_moves = data_moment.get("pv", [])
+                if pv_moves:
+                    # Buscar el nodo (FEN) en el árbol real
+                    target_node = game
+                    target_fen = data_moment["fen"]
+                    temp = game
+                    while temp is not None:
+                        if temp.board().fen() == target_fen:
+                            target_node = temp
+                            break
+                        temp = temp.next()
+                    
+                    if target_node:
+                        # Inyectar mejor jugada de Stockfish como variante si no es la principal
+                        pv_move = chess.Move.from_uci(pv_moves[0])
+                        if pv_move != target_node.next().move:
+                            self._add_pv(target_node, [chess.Move.from_uci(m) for m in pv_moves[:5]])
+            except: 
+                pass
+
+        # Fase 2: IA (Llamada opcional para narrativa pedagógica)
         if not self.ai or not self.ai.is_ready or not self.enable_ai:
             self._apply_fallback_comments(game, metadata)
             return str(game)
 
-        original_pgn = str(game)
+        original_pgn = str(game) # Ya contiene las variantes tácticas entre paréntesis
         ai_results = []
-        board = game.board()
-        ply_count = sum(1 for _ in game.mainline_moves())
-
-        # 1. Comentarios Base (Modelo Lite)
+        
+        # 1. Comentarios Base (Modelo Lite - Asegura Tema y Balance)
         lite_model = self.lite_model_name or self.model_name
         if callback: callback(0, 1, status="ai_start")
         summary_text = self._build_stockfish_summary(metadata)
@@ -288,14 +311,13 @@ class CommentaryEngine:
         if base_ai_pgn:
             ai_results.append(base_ai_pgn)
         
-        # 2. Refuerzo de Momentos Críticos (Modelo Pro) y Variantes
+        # 2. Refuerzo de Momentos Críticos (Modelo Pro)
         if self.use_hybrid and self.pro_model_name and critical_moments:
             num_crit = len(critical_moments)
             for idx, m_idx in enumerate(critical_moments):
                 if callback: callback(idx + 1, num_crit, status="ai_enhancing")
 
-                data_moment = metadata[m_idx]
-                start_m = max(0, m_idx - 10)
+                start_m = max(0, m_idx - 5)
                 end_m = min(len(metadata) - 1, m_idx + 2)
                 win_metadata = metadata[start_m:end_m + 1]
 
@@ -317,33 +339,9 @@ class CommentaryEngine:
                 )
                 if enh_pgn:
                     ai_results.append(enh_pgn)
-                
-                # INYECCIÓN DE VARIANTE DE STOCKFISH
-                # Si el movimiento jugado no fue el mejor (PV), inyectamos la variante
-                if data_moment.get("pv") and len(data_moment["pv"]) > 0:
-                    try:
-                        # Buscar el nodo correspondiente al momento crítico en el juego original
-                        target_node = game
-                        target_fen = data_moment["fen"]
-                        temp = game
-                        while temp is not None:
-                            if temp.board().fen() == target_fen:
-                                target_node = temp
-                                break
-                            temp = temp.next()
-                        
-                        # Añadir la variante (mejor jugada de Stockfish)
-                        pv_moves = data_moment["pv"]
-                        if target_node:
-                            # Solo si la variante no existe ya como jugada principal o variante
-                            pv_san = target_node.board().san(chess.Move.from_uci(pv_moves[0]))
-                            if pv_san != data_moment["san"]:
-                                self._add_pv(target_node, [chess.Move.from_uci(m) for m in pv_moves[:5]])
-                    except: pass
 
-        # Sincronización
+        # Sincronización final
         for res_pgn in ai_results:
-            if callback: callback(0, 1, status="syncing")
             try:
                 new_game = chess.pgn.read_game(io.StringIO(res_pgn))
                 if new_game:
@@ -357,8 +355,7 @@ class CommentaryEngine:
                         temp_node = temp_node.next()
                     visited = set()
                     self._sync_pgn_tree(target_node, new_game, callback=callback, visited=visited)
-            except Exception as e:
-                self.last_error = f"Sync partial error: {e}"
+            except: pass
 
         if ai_results:
             self._ensure_final_summary(game, ai_results[0])

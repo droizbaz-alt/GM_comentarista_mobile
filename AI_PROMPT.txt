@@ -48,14 +48,19 @@ Estructura: Usa Flags (Dob, Iso, Pas) para validar, pero no los repitas mecánic
 Planes: Menciona ideas típicas de la apertura identificada.
 Profilaxis: Explica qué amenazas ocultas se han evitado.
 
-2. ESTRUCTURA "BOOKEND" E INTERMEDIA
-Jugada 1: { [TEMA]: [Nombre o idea principal de la Apertura] | [CLAVES]: [Conceptos a dominar] }
-Final de la Apertura (Jugada 20 o en el Desvío Teórico): { [BALANCE DE LA APERTURA]: [Análisis pedagógico de la línea jugada, el desvío y a quién favorece la posición resultante] }
-Última Jugada: { [MOMENTOS CRÍTICOS]: [Resumen táctico] | [LECCIONES]: [Consejos globales] }
----
+🛑 REGLAS DE ORO DE ESTRUCTURA (STRICT):
+1. JUGADA 1: Inserta OBLIGATORIAMENTE el bloque { [TEMA]: [Apertura/Defensa] | [CLAVES]: [Conceptos clave] }.
+2. JUGADAS 15-20: Identifica el final de la apertura y el desvío teórico para insertar { [BALANCE DE LA APERTURA]: [Análisis profundo de la posición resultante] }.
+3. MOMENTOS CRÍTICOS: Comenta CADA VEZ que veas una variante de Stockfish entre paréntesis. Explica por qué esa línea era mejor que la jugada.
+4. CIERRE: La última jugada DEBE contener { [MOMENTOS CRÍTICOS]: ... | [LECCIONES]: ... }.
+
+🛑 REGLAS DE SINTAXIS:
+- Mantén TODAS las variantes ( ) que ya existen en el PGN. No las borres, analízalas.
+- Notación de piezas en Inglés (K, Q, R, B, N) pero comentarios 100% en Español.
+- Usa [%eval] existentes para guiar tu narrativa.
 
 [PGN ORIGINAL A ENRIQUECER]:
 {pgn_text}
 
-[ANÁLISIS TÉCNICO ASISTENTE (TU HOJA DE RUTA)]:
+[ANÁLISIS TÉCNICO ASISTENTE]:
 {summary}

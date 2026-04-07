@@ -65,7 +65,7 @@ export default function GameContainer() {
     const n = new Chess();
     setGame(n);
     // @ts-ignore
-    window.GM_VERSION = '1.0.7';
+    window.GM_VERSION = '1.1.0';
   }, []);
 
   const fetchRemoteGames = async () => {
@@ -469,7 +469,7 @@ export default function GameContainer() {
       )}
 
       <div style={{ textAlign: 'center', opacity: 0.3, fontSize: '0.7rem', marginTop: '1rem', paddingBottom: '2rem' }}>
-        GM Móvil · v1.0.7 · Engine: Stockfish 16.1 · UI Pre-alpha
+        GM Móvil · v1.1.0 · Engine: Stockfish 16.1 · UI Pre-alpha
       </div>
 
       <style jsx>{`
