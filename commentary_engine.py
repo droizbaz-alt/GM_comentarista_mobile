@@ -288,12 +288,13 @@ class CommentaryEngine:
         if base_ai_pgn:
             ai_results.append(base_ai_pgn)
         
-        # 2. Refuerzo de Momentos Críticos (Modelo Pro)
+        # 2. Refuerzo de Momentos Críticos (Modelo Pro) y Variantes
         if self.use_hybrid and self.pro_model_name and critical_moments:
             num_crit = len(critical_moments)
             for idx, m_idx in enumerate(critical_moments):
                 if callback: callback(idx + 1, num_crit, status="ai_enhancing")
 
+                data_moment = metadata[m_idx]
                 start_m = max(0, m_idx - 10)
                 end_m = min(len(metadata) - 1, m_idx + 2)
                 win_metadata = metadata[start_m:end_m + 1]
@@ -316,6 +317,29 @@ class CommentaryEngine:
                 )
                 if enh_pgn:
                     ai_results.append(enh_pgn)
+                
+                # INYECCIÓN DE VARIANTE DE STOCKFISH
+                # Si el movimiento jugado no fue el mejor (PV), inyectamos la variante
+                if data_moment.get("pv") and len(data_moment["pv"]) > 0:
+                    try:
+                        # Buscar el nodo correspondiente al momento crítico en el juego original
+                        target_node = game
+                        target_fen = data_moment["fen"]
+                        temp = game
+                        while temp is not None:
+                            if temp.board().fen() == target_fen:
+                                target_node = temp
+                                break
+                            temp = temp.next()
+                        
+                        # Añadir la variante (mejor jugada de Stockfish)
+                        pv_moves = data_moment["pv"]
+                        if target_node:
+                            # Solo si la variante no existe ya como jugada principal o variante
+                            pv_san = target_node.board().san(chess.Move.from_uci(pv_moves[0]))
+                            if pv_san != data_moment["san"]:
+                                self._add_pv(target_node, [chess.Move.from_uci(m) for m in pv_moves[:5]])
+                    except: pass
 
         # Sincronización
         for res_pgn in ai_results:

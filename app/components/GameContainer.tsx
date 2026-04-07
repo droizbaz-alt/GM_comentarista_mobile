@@ -65,7 +65,7 @@ export default function GameContainer() {
     const n = new Chess();
     setGame(n);
     // @ts-ignore
-    window.GM_VERSION = '1.0.6';
+    window.GM_VERSION = '1.0.7';
   }, []);
 
   const updatePositionEval = async (fen: string) => {
@@ -80,6 +80,8 @@ export default function GameContainer() {
             const data = await res.json();
             setLiveEval(data.eval);
             setLiveTb(data.tb);
+            // @ts-ignore
+            window.lastPV = data.pv; // Cache temporal para el loop de análisis
         }
     } catch(e) {
         console.log("Live eval skip:", e);
@@ -166,30 +168,46 @@ export default function GameContainer() {
     setIsAnalyzing(true);
     setProgress(0);
     
-    // Generar metadatos REALES
     const fullHistory = new Chess();
     const histMoves = game.history();
     const metadata = [];
     const critMoments = [];
+    let lastEval = 0;
     
     for (let i = 0; i < histMoves.length; i++) {
-        setProgress(Math.round((i / histMoves.length) * 40));
         const moveSan = histMoves[i];
+        const currentFenLoop = fullHistory.fen();
         
+        // Consultar motor para cada posición
+        setProgress(Math.round((i / histMoves.length) * 40));
+        const res = await fetch('/api/analyze/position', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fen: currentFenLoop })
+        });
+        const data = await res.json();
+        
+        const currentEval = data.eval?.cp ? data.eval.cp / 100 : (data.eval?.mate ? 10 : 0);
+        const loss = Math.abs(currentEval - lastEval);
+        
+        // Detección de momento crítico (pérdida > 0.8 o cambio de bando)
+        if (loss > 0.8 || (Math.sign(currentEval) !== Math.sign(lastEval) && Math.abs(currentEval) > 0.5)) {
+            critMoments.push(i);
+        }
+
         metadata.push({
             m: Math.floor(i / 2) + 1,
             t: i % 2 === 0 ? 'Bl' : 'Ne',
             san: moveSan,
-            eval: liveEval?.cp ? liveEval.cp / 100 : 0.35, // Usar live si está disponible
-            loss: 0,
-            rank: 1,
-            fen: fullHistory.fen(),
-            cap: false,
-            estrp: false
+            eval: currentEval,
+            loss: loss,
+            rank: data.pv?.length > 0 && data.pv[0] === moveSan ? 1 : 2,
+            fen: currentFenLoop,
+            pv: data.pv || []
         });
         
+        lastEval = currentEval;
         fullHistory.move(moveSan);
-        if (i % 5 === 0) await new Promise(r => setTimeout(r, 100)); // Rate limit protection
     }
 
     try {
@@ -372,7 +390,7 @@ export default function GameContainer() {
       )}
 
       <div style={{ textAlign: 'center', opacity: 0.3, fontSize: '0.7rem', marginTop: '1rem', paddingBottom: '2rem' }}>
-        GM Móvil · v1.0.6 · Engine: Stockfish 16.1 · UI Pre-alpha
+        GM Móvil · v1.0.7 · Engine: Stockfish 16.1 · UI Pre-alpha
       </div>
 
       <style jsx>{`

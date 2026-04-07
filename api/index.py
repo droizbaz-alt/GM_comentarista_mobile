@@ -43,14 +43,14 @@ def debug():
 @app.route('/api/analyze/position', methods=['POST'])
 @app.route('/analyze/position', methods=['POST'])
 def analyze_position():
-    """Consulta Lichess Cloud Eval y Tablebases de forma robusta."""
+    """Consulta Lichess Cloud Eval y Tablebases con PV de Stockfish."""
     import requests # Import dinámico
     
     data = request.json
     fen = data.get('fen')
     if not fen: return jsonify({"error": "FEN is required"}), 400
     
-    results = {"eval": None, "tb": None}
+    results = {"eval": None, "tb": None, "pv": []}
     
     try:
         # 1. Cloud Eval (Stockfish 16.1)
@@ -60,6 +60,7 @@ def analyze_position():
             pvs = eval_data.get('pvs', [])
             if pvs:
                 results["eval"] = {"cp": pvs[0].get('cp'), "mate": pvs[0].get('mate')}
+                results["pv"] = pvs[0].get('pv', "").split() # Capturamos la línea principal
                 
         # 2. Tablebase (Syzygy) - Solo si hay pocas piezas
         piece_count = fen.split()[0].replace('/', '')
