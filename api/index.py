@@ -58,37 +58,44 @@ def chesscom_user():
     if error: return jsonify({"error": error}), 400
     return jsonify({"games": games})
 
+@app.route('/api/health', methods=['GET'])
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify({"status": "ok", "version": "1.0.4", "message": "Python GM API is alive"})
+
 @app.route('/api/analyze/position', methods=['POST'])
 @app.route('/analyze/position', methods=['POST'])
 def analyze_position():
-    """Consulta Lichess Cloud Eval y Tablebases para una posición FEN."""
+    """Consulta Lichess Cloud Eval y Tablebases de forma robusta."""
     data = request.json
     fen = data.get('fen')
     if not fen: return jsonify({"error": "FEN is required"}), 400
     
     results = {"eval": None, "tb": None}
     
-    # 1. Cloud Eval
+    # 1. Cloud Eval (Stockfish 16.1)
     try:
-        res = requests.get(f"https://lichess.org/api/cloud-eval?fen={fen}", timeout=3)
+        # Usar params para codificación automática de URL
+        res = requests.get("https://lichess.org/api/cloud-eval", params={'fen': fen}, timeout=3)
         if res.status_code == 200:
             eval_data = res.json()
             pvs = eval_data.get('pvs', [])
             if pvs:
-                cp = pvs[0].get('cp')
-                mate = pvs[0].get('mate')
-                results["eval"] = {"cp": cp, "mate": mate}
-    except: pass
+                results["eval"] = {"cp": pvs[0].get('cp'), "mate": pvs[0].get('mate')}
+    except Exception as e:
+        print(f"Cloud Eval Skip: {e}")
     
     # 2. Tablebase (Syzygy)
     try:
-        # Solo si hay pocas piezas
-        piece_count = fen.split()[0].replace('/', '').replace('1', '').replace('2', '').replace('3', '').replace('4', '').replace('5', '').replace('6', '').replace('7', '').replace('8', '')
+        piece_count = fen.split()[0].replace('/', '')
+        for d in "12345678": piece_count = piece_count.replace(d, '')
+        
         if len(piece_count) <= 7:
-            res = requests.get(f"https://tablebase.lichess.ovh/standard?fen={fen}", timeout=3)
+            res = requests.get("https://tablebase.lichess.ovh/standard", params={'fen': fen}, timeout=3)
             if res.status_code == 200:
                 results["tb"] = res.json()
-    except: pass
+    except Exception as e:
+        print(f"Tablebase Skip: {e}")
     
     return jsonify(results)
 
