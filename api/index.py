@@ -12,7 +12,10 @@ from ai_client import QUALITY_PROFILES
 from lichess_api import get_game_pgn, get_user_last_games, format_game_label
 from chesscom_api import get_user_last_games_chesscom
 
+from flask_cors import CORS
+
 app = Flask(__name__)
+CORS(app)
 
 @app.route('/api/lichess/game', methods=['POST'])
 def lichess_game():

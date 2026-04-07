@@ -63,7 +63,8 @@ export default function GameContainer() {
   const onMove = (orig: string, dest: string) => {
     if (!game) return;
     try {
-      const newGame = new Chess(game.fen());
+      const newGame = new Chess();
+      newGame.loadPgn(game.pgn());
       const move = newGame.move({ from: orig, to: dest, promotion: 'q' });
       if (move) updateBoard(newGame);
     } catch (e) {
