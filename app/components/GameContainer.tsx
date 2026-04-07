@@ -61,7 +61,7 @@ export default function GameContainer() {
     const n = new Chess();
     setGame(n);
     // @ts-ignore
-    window.GM_VERSION = '1.0.4';
+    window.GM_VERSION = '1.0.5';
   }, []);
 
   const updatePositionEval = async (fen: string) => {
@@ -69,7 +69,8 @@ export default function GameContainer() {
         const res = await fetch('/api/analyze/position', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ fen })
+            body: JSON.stringify({ fen }),
+            signal: AbortSignal.timeout(3000) // Timeout de 3s para evitar bloqueos
         });
         if (res.ok) {
             const data = await res.json();
@@ -77,8 +78,8 @@ export default function GameContainer() {
             setLiveTb(data.tb);
         }
     } catch(e) {
-        // Silenciar errores de red en el análisis en vivo para no interrumpir el juego
-        console.log("Live analysis skip (offline or unavailable)");
+        // Silencio total en errores de red/timeout para el análisis en vivo
+        console.log("Live eval skip:", e);
     }
   };
 
@@ -241,7 +242,7 @@ export default function GameContainer() {
   return (
     <>
       <header className="header animate-fade-in">
-        <h1>♟️ GM Móvil <span className="badge">v1.0.4</span></h1>
+        <h1>♟️ GM Móvil <span className="badge">v1.0.5</span></h1>
         <p>Tu entrenador Gran Maestro personalizado</p>
       </header>
 
