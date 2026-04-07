@@ -133,16 +133,6 @@ export default function GameContainer() {
   };
 
   // Navigation Logic
-  const goToMove = (index: number) => {
-    if (!game) return;
-    const newGame = new Chess();
-    const history = game.history();
-    for (let i = 0; i < index && i < history.length; i++) {
-        newGame.move(history[i]);
-    }
-    setCurrentFen(newGame.fen());
-  };
-
   const handleUndo = () => {
     if (!game) return;
     const pgn = game.pgn();
@@ -150,6 +140,16 @@ export default function GameContainer() {
     newGame.loadPgn(pgn);
     newGame.undo();
     updateBoard(newGame);
+  };
+
+  const handleForward = () => {
+    // Proximamente
+  };
+
+  const handleFirst = () => {
+    const n = new Chess();
+    updateBoard(n);
+    setCommentary({});
   };
 
   const startAnalysis = async () => {
@@ -187,7 +187,7 @@ export default function GameContainer() {
 
       const result = await response.json();
       if (result.pgn) {
-        setCommentary((prev) => ({ ...prev, [game.fen()]: "Lista de movimientos procesada." }));
+        setCommentary((prev) => ({ ...prev, [game.fen()]: "Análisis completado." }));
         const commentedGame = new Chess();
         commentedGame.loadPgn(result.pgn);
         updateBoard(commentedGame);
@@ -318,11 +318,11 @@ export default function GameContainer() {
            {game?.pgn() || "Nueva Partida"}
         </div>
         <div className="nav-controls">
-          <button className="nav-btn" onClick={() => updateBoard(new Chess())}><ChevronsLeft size={20} /></button>
+          <button className="nav-btn" onClick={handleFirst}><ChevronsLeft size={20} /></button>
           <button className="nav-btn" onClick={handleUndo}><ChevronLeft size={20} /></button>
           <button className="nav-btn" onClick={() => { const n = new Chess(); updateBoard(n); setCommentary({}); }}><Play size={20} /></button>
-          <button className="nav-btn" onClick={() => { /* Proximamente: implementacion Forward */ }}><ChevronRight size={20} /></button>
-          <button className="nav-btn" onClick={() => { /* Proximamente: implementacion Last */ }}><ChevronsRight size={20} /></button>
+          <button className="nav-btn" onClick={() => { /* Proximamente: implementacion Forward */ }} title="Proximamente: Implementación Forward"><ChevronRight size={20} /></button>
+          <button className="nav-btn" onClick={() => { if (game) setCurrentFen(game.fen()); }}><ChevronsRight size={20} /></button>
         </div>
       </section>
 

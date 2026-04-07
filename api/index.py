@@ -18,6 +18,7 @@ app = Flask(__name__)
 CORS(app)
 
 @app.route('/api/lichess/game', methods=['POST'])
+@app.route('/lichess/game', methods=['POST'])
 def lichess_game():
     data = request.json
     url_or_id = data.get('url_or_id')
@@ -26,6 +27,7 @@ def lichess_game():
     return jsonify({"pgn": pgn})
 
 @app.route('/api/lichess/user', methods=['POST'])
+@app.route('/lichess/user', methods=['POST'])
 def lichess_user():
     data = request.json
     username = data.get('username')
@@ -42,6 +44,7 @@ def lichess_user():
     return jsonify({"games": formatted})
 
 @app.route('/api/chesscom/user', methods=['POST'])
+@app.route('/chesscom/user', methods=['POST'])
 def chesscom_user():
     data = request.json
     username = data.get('username')
