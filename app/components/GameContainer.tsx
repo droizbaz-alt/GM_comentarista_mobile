@@ -41,9 +41,8 @@ export default function GameContainer() {
   const [progress, setProgress] = useState(0);
   
   // Advanced History Management
-  const [masterPgn, setMasterPgn] = useState('');
+  const [masterHistory, setMasterHistory] = useState<string[]>([]);
   const [moveCursor, setMoveCursor] = useState(0);
-  const [historySize, setHistorySize] = useState(0);
 
   // Inputs
   const [pgnInput, setPgnInput] = useState('');
@@ -55,15 +54,11 @@ export default function GameContainer() {
     setMounted(true);
     const n = new Chess();
     setGame(n);
-    setMasterPgn(n.pgn());
   }, []);
 
   const updateView = (tempGame: Chess, cursor: number) => {
     setCurrentFen(tempGame.fen());
     setMoveCursor(cursor);
-    // Nota: El setGame se hace solo cuando realmente "confirmamos" un cambio estructural 
-    // o para lectura, pero para navegación pura solo cambiamos el FEN.
-    // Sin embargo, para que onMove funcione, el objeto `game` debe estar sincronizado.
     setGame(tempGame);
   };
 
@@ -71,11 +66,10 @@ export default function GameContainer() {
     try {
       const newGame = new Chess();
       newGame.loadPgn(text);
-      setMasterPgn(text);
-      const hist = newGame.history();
-      setHistorySize(hist.length);
-      setMoveCursor(hist.length);
-      updateView(newGame, hist.length);
+      const history = newGame.history();
+      setMasterHistory(history);
+      setMoveCursor(history.length);
+      updateView(newGame, history.length);
       setActiveTab('analysis');
       setRemoteGames([]);
     } catch (e) {
@@ -90,10 +84,11 @@ export default function GameContainer() {
       newGame.loadPgn(game.pgn());
       const move = newGame.move({ from: orig, to: dest, promotion: 'q' });
       if (move) {
-        setMasterPgn(newGame.pgn());
-        const newHist = newGame.history();
-        setHistorySize(newHist.length);
-        updateView(newGame, newHist.length);
+        // Branching: Si moveCursor no está al final, cortamos la historia master
+        const newHistory = [...masterHistory.slice(0, moveCursor), move.san];
+        setMasterHistory(newHistory);
+        setMoveCursor(newHistory.length);
+        updateView(newGame, newHistory.length);
       }
     } catch (e) {
       console.error("Illegal move", e);
@@ -103,39 +98,38 @@ export default function GameContainer() {
   // Navigation Logic
   const handleFirst = () => {
     const n = new Chess();
-    setHistorySize(0);
-    setMasterPgn(n.pgn());
-    updateView(n, 0);
+    setMoveCursor(0);
+    setCurrentFen(n.fen());
+    setGame(n);
   };
 
   const handlePrev = () => {
     if (moveCursor <= 0) return;
+    const newCursor = moveCursor - 1;
     const n = new Chess();
-    n.loadPgn(masterPgn);
-    const fullHistory = n.history();
-    const newGame = new Chess();
-    for (let i = 0; i < moveCursor - 1; i++) {
-        newGame.move(fullHistory[i]);
+    for (let i = 0; i < newCursor; i++) {
+        n.move(masterHistory[i]);
     }
-    updateView(newGame, moveCursor - 1);
+    updateView(n, newCursor);
   };
 
   const handleNext = () => {
-    if (moveCursor >= historySize) return;
+    if (moveCursor >= masterHistory.length) return;
+    const newCursor = moveCursor + 1;
     const n = new Chess();
-    n.loadPgn(masterPgn);
-    const fullHistory = n.history();
-    const newGame = new Chess();
-    for (let i = 0; i < moveCursor + 1; i++) {
-        newGame.move(fullHistory[i]);
+    for (let i = 0; i < newCursor; i++) {
+        n.move(masterHistory[i]);
     }
-    updateView(newGame, moveCursor + 1);
+    updateView(n, newCursor);
   };
 
   const handleLast = () => {
+    const newCursor = masterHistory.length;
     const n = new Chess();
-    n.loadPgn(masterPgn);
-    updateView(n, historySize);
+    for (let i = 0; i < newCursor; i++) {
+        n.move(masterHistory[i]);
+    }
+    updateView(n, newCursor);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -153,11 +147,13 @@ export default function GameContainer() {
     if (!lichessQuery) return alert("Introduce un usuario");
     setIsLoading(true);
     try {
+      console.log("Fetching Lichess user:", lichessQuery);
       const res = await fetch('/api/lichess/user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: lichessQuery })
       });
+      if (res.status === 404) throw new Error("API not found (404)");
       const data = await res.json();
       if (data.games) setRemoteGames(data.games);
       else alert(data.error || "Error al buscar usuario");
@@ -171,16 +167,18 @@ export default function GameContainer() {
     if (!chesscomQuery) return alert("Introduce un usuario");
     setIsLoading(true);
     try {
+      console.log("Fetching Chess.com user:", chesscomQuery);
       const res = await fetch('/api/chesscom/user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: chesscomQuery })
       });
+      if (res.status === 404) throw new Error("API not found (404)");
       const data = await res.json();
       if (data.games) setRemoteGames(data.games);
       else alert(data.error || "Error al buscar usuario");
     } catch (e) {
-      alert("Error de red");
+      alert("Error de red: " + e);
     }
     setIsLoading(false);
   };
@@ -190,7 +188,6 @@ export default function GameContainer() {
     setIsAnalyzing(true);
     setProgress(0);
     
-    // Usar la historia del juego actual (el que está en el cursor)
     const historyVerbose = game.history({ verbose: true });
     const metadata = historyVerbose.map((m, i) => ({
       m: Math.floor(i / 2) + 1,
@@ -205,7 +202,7 @@ export default function GameContainer() {
     }));
 
     try {
-      setProgress(70);
+      setProgress(50);
       const apiKey = localStorage.getItem('gemini_api_key');
       const quality = localStorage.getItem('analysis_quality') || 'Media';
 
@@ -223,14 +220,12 @@ export default function GameContainer() {
       const result = await response.json();
       if (result.pgn) {
         setCommentary((prev) => ({ ...prev, [game.fen()]: "Análisis completado." }));
-        const commentedGame = new Chess();
-        commentedGame.loadPgn(result.pgn);
         loadPgnText(result.pgn);
       } else {
         alert("Error: " + (result.error || "Desconocido"));
       }
     } catch (err) {
-      alert("Error de conexión");
+      alert("Error de conexión: " + err);
     }
     
     setProgress(100);
@@ -353,8 +348,8 @@ export default function GameContainer() {
           onMove={onMove} 
         />
         <div style={{ padding: '10px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--text-accent)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>
-             {moveCursor}/{historySize} - {game?.pgn() || "Nueva Partida"}
+          <div style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--text-accent)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '75%' }}>
+             [{moveCursor}/{masterHistory.length}] {game?.pgn() || "Nueva Partida"}
           </div>
           <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
             Turno: {game?.turn() === 'w' ? 'Bl' : 'Ne'}
@@ -363,7 +358,7 @@ export default function GameContainer() {
         <div className="nav-controls">
           <button className="nav-btn" onClick={handleFirst}><ChevronsLeft size={20} /></button>
           <button className="nav-btn" onClick={handlePrev}><ChevronLeft size={20} /></button>
-          <button className="nav-btn" onClick={() => { const n = new Chess(); updateView(n, 0); setMasterPgn(n.pgn()); setHistorySize(0); setCommentary({}); }}><Play size={20} /></button>
+          <button className="nav-btn" onClick={() => { const n = new Chess(); setMasterHistory([]); updateView(n, 0); setCommentary({}); }}><Play size={20} /></button>
           <button className="nav-btn" onClick={handleNext}><ChevronRight size={20} /></button>
           <button className="nav-btn" onClick={handleLast}><ChevronsRight size={20} /></button>
         </div>

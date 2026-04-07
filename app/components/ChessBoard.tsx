@@ -35,12 +35,16 @@ export default function ChessBoard({ fen, onMove, orientation = 'white', lastMov
         drawable: { enabled: true },
       });
     } else if (ground.current) {
-      const chess = new Chess(fen);
-      ground.current.set({ 
-        fen: fen, 
-        orientation: orientation,
-        movable: { dests: getMapDests(chess) } 
-      });
+      // Solo actualizar si el FEN es realmente diferente del que tiene el tablero
+      // Esto evita que las piezas 'reboten' tras un movimiento manual corregido por React
+      if (ground.current.get().fen !== fen) {
+        const chess = new Chess(fen);
+        ground.current.set({ 
+          fen: fen, 
+          orientation: orientation,
+          movable: { dests: getMapDests(chess) } 
+        });
+      }
       if (lastMove) ground.current.set({ lastMove: [lastMove.from, lastMove.to] });
     }
   }, [fen, orientation, lastMove]);
