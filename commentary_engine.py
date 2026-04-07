@@ -379,90 +379,63 @@ class CommentaryEngine:
         # Use object ID to prevent recursion on same objects
         node_pair_id = (id(target), id(source))
         if node_pair_id in visited or _depth > 500:
-            if _depth > 500 and logs is not None:
-                logs.append(f"{'  ' * _depth}[!] Recursion limit reached at {_depth}")
             return
         visited.add(node_pair_id)
 
-        if counter is not None:
-            counter[0] += 1
-            if callback and counter[0] % 50 == 0: # Increased threshold for less frequent updates
-                callback(counter[0], None, status="syncing")
-
-        if logs is not None:
-            t_move = str(target.move) if target.move else "START"
-            logs.append(f"{'  ' * _depth}Node: {t_move} | S_Comm: {bool(source.comment)}")
-
-        # 1. Sync Comments
+        # 1. Sync Comments (Improved with relaxed matching)
         if source.comment:
             ai_comment = self.TAG_RE.sub('', source.comment).strip()
             ai_comment_clean = self.CLEAN_RE.sub('', ai_comment).strip()
             
             if ai_comment_clean:
-                if not target.comment:
-                    target.comment = ai_comment
-                    if logs is not None: logs.append(f"{'  ' * (_depth+1)}-> Set New Comment")
-                else:
-                    target_clean = self.CLEAN_RE.sub('', self.TAG_RE.sub('', target.comment)).strip()
-                    # Logic: If target only had tags or if comments don't overlap, append.
-                    if not target_clean or (ai_comment_clean not in target_clean and target_clean not in ai_comment_clean):
-                        target.comment = f"{target.comment} {ai_comment}".strip()
-                        if logs is not None: logs.append(f"{'  ' * (_depth+1)}-> Appended AI Comment")
+                # Si el nodo destino ya tiene un comentario, comprobamos que no sea el mismo para no duplicar
+                if not target.comment or ai_comment_clean not in self.CLEAN_RE.sub('', target.comment):
+                    # Mantener etiquetas de evaluación previas
+                    eval_tags = " ".join(self.TAG_RE.findall(target.comment)) if target.comment else ""
+                    target.comment = f"{eval_tags} {ai_comment}".strip()
 
-        # 2. Relaxed Mainline Following
+        # 2. Relaxed Mainline Following (Flexible move lookup)
         s_next = source.next()
-        t_next = target.next()
-        
         if s_next:
-            matched_mainline = False
-            if t_next:
-                if s_next.move == t_next.move:
-                    self._sync_pgn_tree(t_next, s_next, callback=callback, _depth=_depth+1, logs=logs, counter=counter, visited=visited)
-                    matched_mainline = True
-                else:
-                    for t_var in target.variations:
-                        if t_var.move == s_next.move:
-                            self._sync_pgn_tree(t_var, s_next, callback=callback, _depth=_depth+1, logs=logs, counter=counter, visited=visited)
-                            matched_mainline = True
-                            break
+            t_next = target.next()
+            matched = False
             
-            if not matched_mainline:
+            # Intento 1: Coincidencia exacta de jugada (UCI)
+            if t_next and t_next.move == s_next.move:
+                self._sync_pgn_tree(t_next, s_next, callback=callback, _depth=_depth+1, visited=visited)
+                matched = True
+            
+            # Intento 2: Buscar en variaciones existentes
+            if not matched:
+                for t_var in target.variations:
+                    if t_var.move == s_next.move:
+                        self._sync_pgn_tree(t_var, s_next, callback=callback, _depth=_depth+1, visited=visited)
+                        matched = True
+                        break
+            
+            # Intento 3: Si la IA cambió el orden o formato pero la jugada es legal, añadirla como variante
+            if not matched:
                 try:
-                    move = s_next.move
-                    # CRITICAL: Validate move legality before adding to tree to prevent AssertionError in str(game)
-                    if target.board().is_legal(move):
-                        added = target.add_variation(move)
-                        self._sync_pgn_tree(added, s_next, callback=callback, _depth=_depth+1, logs=logs, counter=counter, visited=visited)
-                        if logs is not None: logs.append(f"{'  ' * (_depth+1)}-> Added variation for AI Move: {move}")
-                    else:
-                        if logs is not None: logs.append(f"{'  ' * (_depth+1)}-> IGNORED illegal AI move: {move}")
-                except Exception as e:
-                    if logs is not None: logs.append(f"{'  ' * (_depth+1)}-> Failed to add AI move {s_next.move}: {e}")
+                    if target.board().is_legal(s_next.move):
+                        added = target.add_variation(s_next.move)
+                        self._sync_pgn_tree(added, s_next, callback=callback, _depth=_depth+1, visited=visited)
+                except: pass
 
         # 3. Variations Sync
         for s_var in source.variations:
             matched = False
             for t_node in target.variations:
                 if t_node.move == s_var.move:
-                    self._sync_pgn_tree(t_node, s_var, callback=callback, _depth=_depth+1, logs=logs, counter=counter, visited=visited)
+                    self._sync_pgn_tree(t_node, s_var, callback=callback, _depth=_depth+1, visited=visited)
                     matched = True
                     break
             
-            if not matched and t_next and t_next.move == s_var.move:
-                self._sync_pgn_tree(t_next, s_var, callback=callback, _depth=_depth+1, logs=logs, counter=counter, visited=visited)
-                matched = True
-            
             if not matched:
                 try:
-                    move = s_var.move
-                    if target.board().is_legal(move):
-                        added = target.add_variation(move)
-                        self._sync_pgn_tree(added, s_var, callback=callback, _depth=_depth+1, logs=logs, counter=counter, visited=visited)
-                        if logs is not None: logs.append(f"{'  ' * (_depth+1)}-> Added new AI variation: {move}")
-                    else:
-                        if logs is not None: logs.append(f"{'  ' * (_depth+1)}-> IGNORED illegal AI variation: {move}")
-                except:
-                    pass
+                    if target.board().is_legal(s_var.move):
+                        added = target.add_variation(s_var.move)
+                        self._sync_pgn_tree(added, s_var, callback=callback, _depth=_depth+1, visited=visited)
+                except: pass
     def _ensure_final_summary(self, game, ai_pgn_text):
         """Extracts the final summary block from AI PGN and ensures it is in the last node of target."""
         pattern = r'\{\s*\[MOMENTOS CRÍTICOS\].*?\}'
