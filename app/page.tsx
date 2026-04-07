@@ -26,7 +26,10 @@ import {
   History
 } from 'lucide-react';
 
+export const dynamic = 'force-dynamic';
+
 export default function Home() {
+  const [mounted, setMounted] = useState(false);
   const [game, setGame] = useState<Chess | null>(null);
   const [currentFen, setCurrentFen] = useState('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
   const [history, setHistory] = useState<string[]>([]);
@@ -39,8 +42,11 @@ export default function Home() {
 
   // Client-side only initialization
   useEffect(() => {
+    setMounted(true);
     setGame(new Chess());
   }, []);
+
+  if (!mounted) return <div style={{ background: '#0f172a', minHeight: '100vh' }} />;
 
   // Sync state with chess game
   const updateBoard = useCallback((newGame: Chess) => {
