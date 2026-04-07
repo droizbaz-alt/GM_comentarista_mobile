@@ -1,8 +1,16 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import ChessBoard from './components/ChessBoard';
+import dynamic from 'next/dynamic';
 import SettingsPanel from './components/SettingsPanel';
+
+const ChessBoard = dynamic(() => import('./components/ChessBoard'), { 
+  ssr: false,
+  loading: () => <div className="board-wrapper" style={{ background: '#1e293b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <p style={{ color: 'var(--text-muted)' }}>Cargando tablero...</p>
+  </div>
+});
+
 import { Chess } from 'chess.js';
 import { 
   Play, 
