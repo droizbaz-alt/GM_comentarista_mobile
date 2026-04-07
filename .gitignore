@@ -44,3 +44,11 @@ Thumbs.db
 venv/
 .venv/
 env/
+
+# ── Frontend (Next.js) ───────────────────────────────────────────────────────
+node_modules/
+.next/
+dist/
+build/
+.env*.local
+.vercel

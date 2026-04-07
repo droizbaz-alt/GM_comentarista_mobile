@@ -258,6 +258,88 @@ class CommentaryEngine:
             except Exception as e:
                 self.last_error = f"PGN Export Error: {e}"
                 return game.accept(chess.pgn.StringExporter(columns=None, enclosures=True))
+
+    def commentate_preanalyzed_game(self, game, metadata, critical_moments, callback=None):
+        """
+        Versión para Serveless: Recibe la partida y la evaluación ya calculada del cliente.
+        Esto evita tener que correr Stockfish en el servidor (Vercel).
+        """
+        if not self.ai or not self.ai.is_ready or not self.enable_ai:
+            self._apply_fallback_comments(game, metadata)
+            return str(game)
+
+        original_pgn = str(game)
+        ai_results = []
+        board = game.board()
+        ply_count = sum(1 for _ in game.mainline_moves())
+
+        # 1. Comentarios Base (Modelo Lite)
+        lite_model = self.lite_model_name or self.model_name
+        if callback: callback(0, 1, status="ai_start")
+        summary_text = self._build_stockfish_summary(metadata)
+        
+        base_ai_pgn = self.ai.generate_commentary(
+            pgn_text=original_pgn,
+            summary=summary_text,
+            knowledge_context=self.knowledge_context or "",
+            is_enhancement=False,
+            model_name=lite_model,
+        )
+        if base_ai_pgn:
+            ai_results.append(base_ai_pgn)
+        
+        # 2. Refuerzo de Momentos Críticos (Modelo Pro)
+        if self.use_hybrid and self.pro_model_name and critical_moments:
+            num_crit = len(critical_moments)
+            for idx, m_idx in enumerate(critical_moments):
+                if callback: callback(idx + 1, num_crit, status="ai_enhancing")
+
+                start_m = max(0, m_idx - 10)
+                end_m = min(len(metadata) - 1, m_idx + 2)
+                win_metadata = metadata[start_m:end_m + 1]
+
+                first_m = win_metadata[0]
+                window_pgn = f'[FEN "{first_m["fen"]}"]\n\n'
+                moves_list = []
+                for m in win_metadata:
+                    suffix = "." if m['t'] == "Bl" else "..."
+                    moves_list.append(f"{m['m']}{suffix} {m['san']}")
+                window_pgn += " ".join(moves_list)
+
+                win_summary = self._build_stockfish_summary(win_metadata)
+                enh_pgn = self.ai.generate_commentary(
+                    pgn_text=window_pgn,
+                    summary=win_summary,
+                    knowledge_context=self.knowledge_context or "",
+                    is_enhancement=True,
+                    model_name=self.pro_model_name,
+                )
+                if enh_pgn:
+                    ai_results.append(enh_pgn)
+
+        # Sincronización
+        for res_pgn in ai_results:
+            if callback: callback(0, 1, status="syncing")
+            try:
+                new_game = chess.pgn.read_game(io.StringIO(res_pgn))
+                if new_game:
+                    target_node = game
+                    start_fen = new_game.board().fen()
+                    temp_node = game
+                    while temp_node is not None:
+                        if temp_node.board().fen() == start_fen:
+                            target_node = temp_node
+                            break
+                        temp_node = temp_node.next()
+                    visited = set()
+                    self._sync_pgn_tree(target_node, new_game, callback=callback, visited=visited)
+            except Exception as e:
+                self.last_error = f"Sync partial error: {e}"
+
+        if ai_results:
+            self._ensure_final_summary(game, ai_results[0])
+
+        return str(game)
         
         # Fallback if no AI or AI failed
         self._apply_fallback_comments(game, analysis_metadata)

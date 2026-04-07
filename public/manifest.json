@@ -1,0 +1,17 @@
+{
+  "name": "GM Comentarista Mobile",
+  "short_name": "GM Móvil",
+  "description": "Entrenador de ajedrez con IA de nivel Gran Maestro",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/811/811462.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
