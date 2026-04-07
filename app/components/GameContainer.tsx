@@ -12,14 +12,12 @@ import {
   ChevronsRight, 
   Search,
   Upload,
-  Globe,
   Monitor,
   Import,
   Cpu,
   BrainCircuit,
   Zap,
-  Loader2,
-  CheckCircle2
+  Loader2
 } from 'lucide-react';
 
 const ChessBoard = dynamic(() => import('./ChessBoard'), { 
@@ -35,7 +33,6 @@ export default function GameContainer() {
   const [mounted, setMounted] = useState(false);
   const [game, setGame] = useState<Chess | null>(null);
   const [currentFen, setCurrentFen] = useState('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
-  const [history, setHistory] = useState<Move[]>([]);
   const [commentary, setCommentary] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState('import');
   const [importMode, setImportMode] = useState<Platform>('pgn');
@@ -43,6 +40,11 @@ export default function GameContainer() {
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   
+  // Advanced History Management
+  const [masterPgn, setMasterPgn] = useState('');
+  const [moveCursor, setMoveCursor] = useState(0);
+  const [historySize, setHistorySize] = useState(0);
+
   // Inputs
   const [pgnInput, setPgnInput] = useState('');
   const [lichessQuery, setLichessQuery] = useState('');
@@ -51,14 +53,35 @@ export default function GameContainer() {
 
   useEffect(() => {
     setMounted(true);
-    setGame(new Chess());
+    const n = new Chess();
+    setGame(n);
+    setMasterPgn(n.pgn());
   }, []);
 
-  const updateBoard = useCallback((newGame: Chess) => {
-    setGame(newGame);
-    setCurrentFen(newGame.fen());
-    setHistory(newGame.history({ verbose: true }));
-  }, []);
+  const updateView = (tempGame: Chess, cursor: number) => {
+    setCurrentFen(tempGame.fen());
+    setMoveCursor(cursor);
+    // Nota: El setGame se hace solo cuando realmente "confirmamos" un cambio estructural 
+    // o para lectura, pero para navegación pura solo cambiamos el FEN.
+    // Sin embargo, para que onMove funcione, el objeto `game` debe estar sincronizado.
+    setGame(tempGame);
+  };
+
+  const loadPgnText = (text: string) => {
+    try {
+      const newGame = new Chess();
+      newGame.loadPgn(text);
+      setMasterPgn(text);
+      const hist = newGame.history();
+      setHistorySize(hist.length);
+      setMoveCursor(hist.length);
+      updateView(newGame, hist.length);
+      setActiveTab('analysis');
+      setRemoteGames([]);
+    } catch (e) {
+      alert("PGN inválido");
+    }
+  };
 
   const onMove = (orig: string, dest: string) => {
     if (!game) return;
@@ -66,23 +89,53 @@ export default function GameContainer() {
       const newGame = new Chess();
       newGame.loadPgn(game.pgn());
       const move = newGame.move({ from: orig, to: dest, promotion: 'q' });
-      if (move) updateBoard(newGame);
+      if (move) {
+        setMasterPgn(newGame.pgn());
+        const newHist = newGame.history();
+        setHistorySize(newHist.length);
+        updateView(newGame, newHist.length);
+      }
     } catch (e) {
       console.error("Illegal move", e);
     }
   };
 
-  const loadPgnText = (text: string) => {
-    if (!game) return;
-    try {
-      const newGame = new Chess();
-      newGame.loadPgn(text);
-      updateBoard(newGame);
-      setActiveTab('analysis');
-      setRemoteGames([]);
-    } catch (e) {
-      alert("PGN inválido");
+  // Navigation Logic
+  const handleFirst = () => {
+    const n = new Chess();
+    setHistorySize(0);
+    setMasterPgn(n.pgn());
+    updateView(n, 0);
+  };
+
+  const handlePrev = () => {
+    if (moveCursor <= 0) return;
+    const n = new Chess();
+    n.loadPgn(masterPgn);
+    const fullHistory = n.history();
+    const newGame = new Chess();
+    for (let i = 0; i < moveCursor - 1; i++) {
+        newGame.move(fullHistory[i]);
     }
+    updateView(newGame, moveCursor - 1);
+  };
+
+  const handleNext = () => {
+    if (moveCursor >= historySize) return;
+    const n = new Chess();
+    n.loadPgn(masterPgn);
+    const fullHistory = n.history();
+    const newGame = new Chess();
+    for (let i = 0; i < moveCursor + 1; i++) {
+        newGame.move(fullHistory[i]);
+    }
+    updateView(newGame, moveCursor + 1);
+  };
+
+  const handleLast = () => {
+    const n = new Chess();
+    n.loadPgn(masterPgn);
+    updateView(n, historySize);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -109,7 +162,7 @@ export default function GameContainer() {
       if (data.games) setRemoteGames(data.games);
       else alert(data.error || "Error al buscar usuario");
     } catch (e) {
-      alert("Error de red");
+      alert("Error de red: " + e);
     }
     setIsLoading(false);
   };
@@ -132,32 +185,14 @@ export default function GameContainer() {
     setIsLoading(false);
   };
 
-  // Navigation Logic
-  const handleUndo = () => {
-    if (!game) return;
-    const pgn = game.pgn();
-    const newGame = new Chess();
-    newGame.loadPgn(pgn);
-    newGame.undo();
-    updateBoard(newGame);
-  };
-
-  const handleForward = () => {
-    // Proximamente
-  };
-
-  const handleFirst = () => {
-    const n = new Chess();
-    updateBoard(n);
-    setCommentary({});
-  };
-
   const startAnalysis = async () => {
     if (!game) return;
     setIsAnalyzing(true);
     setProgress(0);
     
-    const metadata = game.history({ verbose: true }).map((m, i) => ({
+    // Usar la historia del juego actual (el que está en el cursor)
+    const historyVerbose = game.history({ verbose: true });
+    const metadata = historyVerbose.map((m, i) => ({
       m: Math.floor(i / 2) + 1,
       t: i % 2 === 0 ? 'Bl' : 'Ne',
       san: m.san,
@@ -190,7 +225,7 @@ export default function GameContainer() {
         setCommentary((prev) => ({ ...prev, [game.fen()]: "Análisis completado." }));
         const commentedGame = new Chess();
         commentedGame.loadPgn(result.pgn);
-        updateBoard(commentedGame);
+        loadPgnText(result.pgn);
       } else {
         alert("Error: " + (result.error || "Desconocido"));
       }
@@ -313,16 +348,24 @@ export default function GameContainer() {
 
       {/* Main Board View */}
       <section className="card animate-fade-in" style={{ padding: '0.75rem' }}>
-        <ChessBoard fen={currentFen} onMove={onMove} />
-        <div style={{ padding: '10px 0', fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--text-accent)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-           {game?.pgn() || "Nueva Partida"}
+        <ChessBoard 
+          fen={currentFen} 
+          onMove={onMove} 
+        />
+        <div style={{ padding: '10px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--text-accent)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>
+             {moveCursor}/{historySize} - {game?.pgn() || "Nueva Partida"}
+          </div>
+          <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+            Turno: {game?.turn() === 'w' ? 'Bl' : 'Ne'}
+          </div>
         </div>
         <div className="nav-controls">
           <button className="nav-btn" onClick={handleFirst}><ChevronsLeft size={20} /></button>
-          <button className="nav-btn" onClick={handleUndo}><ChevronLeft size={20} /></button>
-          <button className="nav-btn" onClick={() => { const n = new Chess(); updateBoard(n); setCommentary({}); }}><Play size={20} /></button>
-          <button className="nav-btn" onClick={() => { /* Proximamente: implementacion Forward */ }} title="Proximamente: Implementación Forward"><ChevronRight size={20} /></button>
-          <button className="nav-btn" onClick={() => { if (game) setCurrentFen(game.fen()); }}><ChevronsRight size={20} /></button>
+          <button className="nav-btn" onClick={handlePrev}><ChevronLeft size={20} /></button>
+          <button className="nav-btn" onClick={() => { const n = new Chess(); updateView(n, 0); setMasterPgn(n.pgn()); setHistorySize(0); setCommentary({}); }}><Play size={20} /></button>
+          <button className="nav-btn" onClick={handleNext}><ChevronRight size={20} /></button>
+          <button className="nav-btn" onClick={handleLast}><ChevronsRight size={20} /></button>
         </div>
       </section>
 

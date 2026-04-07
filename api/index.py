@@ -17,6 +17,10 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)
 
+@app.route('/api/health', methods=['GET'])
+def health():
+    return jsonify({"status": "ok", "message": "Python GM API is alive"})
+
 @app.route('/api/lichess/game', methods=['POST'])
 @app.route('/lichess/game', methods=['POST'])
 def lichess_game():
