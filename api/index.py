@@ -9,11 +9,50 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from commentary_engine import CommentaryEngine
 from ai_client import QUALITY_PROFILES
+from lichess_api import get_game_pgn, get_user_last_games, format_game_label
+from chesscom_api import get_user_last_games_chesscom
 
 app = Flask(__name__)
 
+@app.route('/api/lichess/game', methods=['POST'])
+def lichess_game():
+    data = request.json
+    url_or_id = data.get('url_or_id')
+    pgn, error = get_game_pgn(url_or_id)
+    if error: return jsonify({"error": error}), 400
+    return jsonify({"pgn": pgn})
+
+@app.route('/api/lichess/user', methods=['POST'])
+def lichess_user():
+    data = request.json
+    username = data.get('username')
+    games, error = get_user_last_games(username)
+    if error: return jsonify({"error": error}), 400
+    
+    formatted = []
+    for g in games:
+        formatted.append({
+            "id": g.get("id"),
+            "label": format_game_label(g, username),
+            "pgn": g.get("pgn")
+        })
+    return jsonify({"games": formatted})
+
+@app.route('/api/chesscom/user', methods=['POST'])
+def chesscom_user():
+    data = request.json
+    username = data.get('username')
+    games, error = get_user_last_games_chesscom(username)
+    if error: return jsonify({"error": error}), 400
+    return jsonify({"games": games})
+
 @app.route('/api/commentate', methods=['POST'])
 def commentate():
+    # ... existing commentate logic ...
+    try:
+        data = request.json
+        pgn_text = data.get('pgn')
+        # ...
     try:
         data = request.json
         pgn_text = data.get('pgn')
