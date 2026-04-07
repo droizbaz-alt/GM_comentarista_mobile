@@ -1,0 +1,18 @@
+# Ignorar archivos locales de Streamlit y scripts de soporte para agilizar el build de Vercel
+app.py
+create_ppt.py
+create_pro_ppt.py
+export_pdf.py
+diagnostic_test.py
+PRESENTACION.md
+MANUAL_USUARIO.md
+.streamlit/
+historial_analisis/
+*.pgn
+*.log
+*.bak
+*.old
+venv/
+.venv/
+node_modules/
+.next/
