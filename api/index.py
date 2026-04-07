@@ -18,8 +18,9 @@ app = Flask(__name__)
 CORS(app)
 
 @app.route('/api/health', methods=['GET'])
+@app.route('/health', methods=['GET'])
 def health():
-    return jsonify({"status": "ok", "message": "Python GM API is alive"})
+    return jsonify({"status": "ok", "version": "1.0.1", "message": "Python GM API is alive"})
 
 @app.route('/api/lichess/game', methods=['POST'])
 @app.route('/lichess/game', methods=['POST'])
@@ -57,12 +58,8 @@ def chesscom_user():
     return jsonify({"games": games})
 
 @app.route('/api/commentate', methods=['POST'])
+@app.route('/commentate', methods=['POST'])
 def commentate():
-    # ... existing commentate logic ...
-    try:
-        data = request.json
-        pgn_text = data.get('pgn')
-        # ...
     try:
         data = request.json
         pgn_text = data.get('pgn')
