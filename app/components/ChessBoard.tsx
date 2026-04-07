@@ -17,33 +17,35 @@ interface BoardProps {
 export default function ChessBoard({ fen, onMove, orientation = 'white', lastMove }: BoardProps) {
   const boardRef = useRef<HTMLDivElement>(null);
   const ground = useRef<any>(null);
+  const lastFenRef = useRef(fen);
 
   useEffect(() => {
     if (boardRef.current && !ground.current) {
+      const chess = new Chess(fen);
       ground.current = Chessground(boardRef.current, {
         fen: fen,
         orientation: orientation,
         movable: {
           color: 'both',
           free: false,
-          dests: getMapDests(new Chess(fen)),
-          events: {
-            after: (orig: any, dest: any) => onMove && onMove(orig, dest)
-          }
+          dests: getMapDests(chess),
+        },
+        events: {
+          after: (orig: any, dest: any) => onMove && onMove(orig, dest)
         },
         animation: { enabled: true, duration: 250 },
         drawable: { enabled: true },
       });
     } else if (ground.current) {
-      // Solo actualizar si el FEN es realmente diferente del que tiene el tablero
-      // Esto evita que las piezas 'reboten' tras un movimiento manual corregido por React
-      if (ground.current.get().fen !== fen) {
+      // Solo actualizar si el FEN ha cambiado externamente (navegación)
+      if (lastFenRef.current !== fen) {
         const chess = new Chess(fen);
         ground.current.set({ 
           fen: fen, 
           orientation: orientation,
           movable: { dests: getMapDests(chess) } 
         });
+        lastFenRef.current = fen;
       }
       if (lastMove) ground.current.set({ lastMove: [lastMove.from, lastMove.to] });
     }

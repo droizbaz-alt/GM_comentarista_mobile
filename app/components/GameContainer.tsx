@@ -238,7 +238,7 @@ export default function GameContainer() {
   return (
     <>
       <header className="header animate-fade-in">
-        <h1>♟️ GM Móvil <span style={{ fontSize: '0.6rem', padding: '2px 6px', background: 'var(--accent-blue)', borderRadius: '12px', verticalAlign: 'middle', marginLeft: '5px', opacity: 0.8 }}>v1.0.1</span></h1>
+        <h1>♟️ GM Móvil <span style={{ fontSize: '0.6rem', padding: '2px 6px', background: 'var(--accent-blue)', borderRadius: '12px', verticalAlign: 'middle', marginLeft: '5px', opacity: 0.8 }}>v1.0.2</span></h1>
         <p>Tu entrenador Gran Maestro personalizado</p>
       </header>
 
