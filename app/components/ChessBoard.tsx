@@ -16,49 +16,60 @@ interface BoardProps {
 
 export default function ChessBoard({ fen, onMove, orientation = 'white', lastMove }: BoardProps) {
   const boardRef = useRef<HTMLDivElement>(null);
-  const ground = useRef<any>(null);
+  const cgInstance = useRef<any>(null);
   const lastFenRef = useRef(fen);
 
   useEffect(() => {
-    if (boardRef.current && !ground.current) {
+    console.log("🧩 ChessBoard v1.0.2 Mounted/Updated");
+    if (boardRef.current && !cgInstance.current) {
       const chess = new Chess(fen);
-      ground.current = Chessground(boardRef.current, {
+      cgInstance.current = Chessground(boardRef.current, {
         fen: fen,
         orientation: orientation,
         movable: {
           color: 'both',
           free: false,
-          dests: getMapDests(chess),
+          dests: getMapDests(chess) as any,
         },
         events: {
-          after: (orig: any, dest: any) => onMove && onMove(orig, dest)
+          after: (orig: any, dest: any) => {
+            console.log("♟️ Move detected:", orig, dest);
+            if (onMove) onMove(orig, dest);
+          }
         },
         animation: { enabled: true, duration: 250 },
         drawable: { enabled: true },
       });
-    } else if (ground.current) {
-      // Solo actualizar si el FEN ha cambiado externamente (navegación)
+    } else if (cgInstance.current) {
       if (lastFenRef.current !== fen) {
+        console.log("🔄 Adjusting board to FEN:", fen);
         const chess = new Chess(fen);
-        ground.current.set({ 
+        cgInstance.current.set({ 
           fen: fen, 
           orientation: orientation,
-          movable: { dests: getMapDests(chess) } 
+          movable: { dests: getMapDests(chess) as any } 
         });
         lastFenRef.current = fen;
       }
-      if (lastMove) ground.current.set({ lastMove: [lastMove.from, lastMove.to] });
+      if (lastMove) cgInstance.current.set({ lastMove: [lastMove.from, lastMove.to] });
     }
   }, [fen, orientation, lastMove]);
 
   function getMapDests(chess: Chess) {
-    const dests = new Map();
+    // Usar objeto plano para máxima compatibilidad y evitar .get() errors
+    const dests: Record<string, string[]> = {};
     chess.moves({ verbose: true }).forEach(m => {
-      const ms = dests.get(m.from) || [];
-      ms.push(m.to);
-      dests.set(m.from, ms);
+      if (!dests[m.from]) dests[m.from] = [];
+      dests[m.from].push(m.to);
     });
-    return dests;
+    
+    // Convertir a Map solo para la librería Chessground si es necesario, 
+    // pero Chessground también acepta Map nativo de JS.
+    const destsMap = new Map();
+    for (const key in dests) {
+        destsMap.set(key, dests[key]);
+    }
+    return destsMap;
   }
 
   return (

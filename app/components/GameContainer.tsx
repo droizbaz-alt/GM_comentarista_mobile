@@ -54,6 +54,9 @@ export default function GameContainer() {
     setMounted(true);
     const n = new Chess();
     setGame(n);
+    // @ts-ignore
+    window.GM_VERSION = '1.0.2';
+    console.log("🚀 GM Comentarista Mobile v1.0.2 initialized");
   }, []);
 
   const updateView = (tempGame: Chess, cursor: number) => {
