@@ -26,24 +26,31 @@ export default function ChessBoard({ fen, onMove, orientation = 'white', lastMov
         movable: {
           color: 'both',
           free: false,
-          dests: getDests(new Chess(fen)),
+          dests: getMapDests(new Chess(fen)),
           events: {
-            after: (orig, dest) => onMove && onMove(orig, dest)
+            after: (orig: any, dest: any) => onMove && onMove(orig, dest)
           }
         },
-        animation: { enabled: true, duration: 200 },
+        animation: { enabled: true, duration: 250 },
         drawable: { enabled: true },
       });
     } else if (ground.current) {
-      ground.current.set({ fen: fen, orientation: orientation });
+      const chess = new Chess(fen);
+      ground.current.set({ 
+        fen: fen, 
+        orientation: orientation,
+        movable: { dests: getMapDests(chess) } 
+      });
       if (lastMove) ground.current.set({ lastMove: [lastMove.from, lastMove.to] });
     }
   }, [fen, orientation, lastMove]);
 
-  function getDests(chess: Chess) {
+  function getMapDests(chess: Chess) {
     const dests = new Map();
     chess.moves({ verbose: true }).forEach(m => {
-      dests.set(m.from, (dests.get(m.from) || []).concat(m.to));
+      const ms = dests.get(m.from) || [];
+      ms.push(m.to);
+      dests.set(m.from, ms);
     });
     return dests;
   }

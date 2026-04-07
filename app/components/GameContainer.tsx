@@ -97,6 +97,7 @@ export default function GameContainer() {
   };
 
   const fetchLichess = async () => {
+    if (!lichessQuery) return alert("Introduce un usuario");
     setIsLoading(true);
     try {
       const res = await fetch('/api/lichess/user', {
@@ -114,6 +115,7 @@ export default function GameContainer() {
   };
 
   const fetchChessCom = async () => {
+    if (!chesscomQuery) return alert("Introduce un usuario");
     setIsLoading(true);
     try {
       const res = await fetch('/api/chesscom/user', {
@@ -128,6 +130,26 @@ export default function GameContainer() {
       alert("Error de red");
     }
     setIsLoading(false);
+  };
+
+  // Navigation Logic
+  const goToMove = (index: number) => {
+    if (!game) return;
+    const newGame = new Chess();
+    const history = game.history();
+    for (let i = 0; i < index && i < history.length; i++) {
+        newGame.move(history[i]);
+    }
+    setCurrentFen(newGame.fen());
+  };
+
+  const handleUndo = () => {
+    if (!game) return;
+    const pgn = game.pgn();
+    const newGame = new Chess();
+    newGame.loadPgn(pgn);
+    newGame.undo();
+    updateBoard(newGame);
   };
 
   const startAnalysis = async () => {
@@ -292,15 +314,15 @@ export default function GameContainer() {
       {/* Main Board View */}
       <section className="card animate-fade-in" style={{ padding: '0.75rem' }}>
         <ChessBoard fen={currentFen} onMove={onMove} />
-        <div style={{ padding: '10px 0', fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-           {game?.pgn() || "Partida nueva"}
+        <div style={{ padding: '10px 0', fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--text-accent)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+           {game?.pgn() || "Nueva Partida"}
         </div>
         <div className="nav-controls">
-          <button className="nav-btn"><ChevronsLeft size={20} /></button>
-          <button className="nav-btn"><ChevronLeft size={20} /></button>
+          <button className="nav-btn" onClick={() => updateBoard(new Chess())}><ChevronsLeft size={20} /></button>
+          <button className="nav-btn" onClick={handleUndo}><ChevronLeft size={20} /></button>
           <button className="nav-btn" onClick={() => { const n = new Chess(); updateBoard(n); setCommentary({}); }}><Play size={20} /></button>
-          <button className="nav-btn"><ChevronRight size={20} /></button>
-          <button className="nav-btn"><ChevronsRight size={20} /></button>
+          <button className="nav-btn" onClick={() => { /* Proximamente: implementacion Forward */ }}><ChevronRight size={20} /></button>
+          <button className="nav-btn" onClick={() => { /* Proximamente: implementacion Last */ }}><ChevronsRight size={20} /></button>
         </div>
       </section>
 
