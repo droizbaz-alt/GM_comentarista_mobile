@@ -21,25 +21,24 @@ from cache_manager import CacheManager
 
 
 # ---------------------------------------------------------------------------
-# Mapa de modelos por nivel de calidad (para la UI simplificada)
-# ---------------------------------------------------------------------------
+# Mapa de modelos por nivel de calidad (Modelos reales de Gemini)
 QUALITY_PROFILES = {
     "Básica": {
-        "lite":  "gemini-2.5-flash-lite",
-        "pro":   "gemini-2.5-flash",
+        "lite":  "gemini-1.5-flash",
+        "pro":   "gemini-1.5-flash",
     },
     "Media": {
-        "lite":  "gemini-3.1-flash-lite-preview",
-        "pro":   "gemini-2.5-flash",
+        "lite":  "gemini-1.5-flash",
+        "pro":   "gemini-2.0-flash",
     },
     "Alta": {
-        "lite":  "gemini-3.1-flash-lite-preview",
-        "pro":   "gemini-2.5-pro",
+        "lite":  "gemini-2.0-flash",
+        "pro":   "gemini-1.5-pro",
     },
 }
 
-# Modelos de rescate con altas cuotas gratuitas (intentados si los primarios fallan)
-RESCUE_MODELS = ["gemini-3.1-flash-lite-preview", "gemma-3-27b-it"]
+# Modelos de rescate reales
+RESCUE_MODELS = ["gemini-1.5-flash", "gemini-2.0-flash"]
 
 
 class AIClient:

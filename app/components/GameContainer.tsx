@@ -258,10 +258,27 @@ export default function GameContainer() {
       if (result.pgn) {
         loadPgnText(result.pgn);
       } else {
-        alert("Error: " + (result.error || "Desconocido"));
+        throw new Error(result.error || "IA no disponible");
       }
     } catch (err) {
-      alert("Error de conexión");
+      console.warn("IA Fallback: Inyectando solo análisis analítico", err);
+      // Failsafe: Si la IA falla, inyectamos nosotros las variantes de Stockfish ya calculadas
+      const fallbackGame = new Chess();
+      fallbackGame.loadPgn(game.pgn());
+      
+      // Aplicar comentarios técnicos básicos y variantes
+      metadata.forEach((m, idx) => {
+          if (m.pv && m.pv.length > 0 && m.rank > 1) {
+              const comment = `[%eval ${m.eval.toFixed(2)}] Stockfish sugiere: ${m.pv.slice(0,3).join(' ')}`;
+              // @ts-ignore (chess.js private access for comment injection)
+              const history = fallbackGame.history({ verbose: true });
+              if (history[idx]) history[idx].comment = comment;
+          }
+      });
+      
+      setGame(fallbackGame);
+      setCurrentComment("⚠️ Error en IA. Se muestra el análisis táctico de Stockfish.");
+      setActiveTab('analysis');
     }
     
     setProgress(100);
