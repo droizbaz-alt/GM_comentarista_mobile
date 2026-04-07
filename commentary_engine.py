@@ -282,9 +282,16 @@ class CommentaryEngine:
                     
                     if target_node:
                         # Inyectar mejor jugada de Stockfish como variante si no es la principal
-                        pv_move = chess.Move.from_uci(pv_moves[0])
-                        if pv_move != target_node.next().move:
-                            self._add_pv(target_node, [chess.Move.from_uci(m) for m in pv_moves[:5]])
+                        pv_moves = data_moment.get("pv", [])
+                        if pv_moves:
+                            try:
+                                pv_move = chess.Move.from_uci(pv_moves[0])
+                                # Verificar si hay un movimiento siguiente y si es distinto al PV
+                                next_move_node = target_node.next()
+                                if next_move_node is None or next_move_node.move != pv_move:
+                                    self._add_pv(target_node, [chess.Move.from_uci(m) for m in pv_moves[:5]])
+                            except:
+                                pass
             except: 
                 pass
 

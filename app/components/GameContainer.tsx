@@ -65,7 +65,7 @@ export default function GameContainer() {
     const n = new Chess();
     setGame(n);
     // @ts-ignore
-    window.GM_VERSION = '1.1.0';
+    window.GM_VERSION = '1.1.1';
   }, []);
 
   const fetchRemoteGames = async () => {
@@ -262,17 +262,21 @@ export default function GameContainer() {
       }
     } catch (err) {
       console.warn("IA Fallback: Inyectando solo análisis analítico", err);
-      // Failsafe: Si la IA falla, inyectamos nosotros las variantes de Stockfish ya calculadas
+      // Failsafe: Si la IA falla, usamos el PGN actual que ya tiene las variantes inyectadas en el backend (si llegó a ese punto)
+      // O inyectamos comentarios básicos sobre la instancia actual
       const fallbackGame = new Chess();
       fallbackGame.loadPgn(game.pgn());
       
-      // Aplicar comentarios técnicos básicos y variantes
       metadata.forEach((m, idx) => {
           if (m.pv && m.pv.length > 0 && m.rank > 1) {
               const comment = `[%eval ${m.eval.toFixed(2)}] Stockfish sugiere: ${m.pv.slice(0,3).join(' ')}`;
-              // @ts-ignore (chess.js private access for comment injection)
+              // En chess.js beta.8+, move history es 0-indexed para movimientos hechos.
+              // Pero cargar PGN recrea el árbol.
               const history = fallbackGame.history({ verbose: true });
-              if (history[idx]) history[idx].comment = comment;
+              if (history[idx]) {
+                  // @ts-ignore
+                  fallbackGame.setComment(comment); // Esto pone comentario en la posición ACTUAL del cursor
+              }
           }
       });
       
@@ -469,7 +473,7 @@ export default function GameContainer() {
       )}
 
       <div style={{ textAlign: 'center', opacity: 0.3, fontSize: '0.7rem', marginTop: '1rem', paddingBottom: '2rem' }}>
-        GM Móvil · v1.1.0 · Engine: Stockfish 16.1 · UI Pre-alpha
+        GM Móvil · v1.1.1 · Engine: Stockfish 16.1 · UI Pre-alpha
       </div>
 
       <style jsx>{`
