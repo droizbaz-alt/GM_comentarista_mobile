@@ -255,9 +255,16 @@ class AIClient:
         return [x for x in models if not (x in seen or seen.add(x))]  # type: ignore[func-returns-value]
 
     def _log(self, message: str) -> None:
-        """Añade una entrada al log de errores."""
+        """Añade una entrada al log de errores (Solo si el sistema de archivos lo permite)."""
         try:
+            # En Vercel no podemos escribir en el directorio de la App
+            if os.environ.get('VERCEL') == '1':
+                print(f"[AI LOG]: {message}")
+                return
+                
             with open(self._log_file, "a", encoding="utf-8") as f:
                 f.write(f"\n--- {time.ctime()} {message} ---\n")
         except Exception:
+            # Fallback silencioso en producción
+            print(f"[SILENT AI ERROR]: {message}")
             pass

@@ -3,6 +3,7 @@ import sys
 import os
 import io
 import chess.pgn
+import requests
 
 # Añadir directorio raíz al path para importar módulos locales
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -20,7 +21,7 @@ CORS(app)
 @app.route('/api/health', methods=['GET'])
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({"status": "ok", "version": "1.0.1", "message": "Python GM API is alive"})
+    return jsonify({"status": "ok", "version": "1.0.3", "message": "Python GM API is alive"})
 
 @app.route('/api/lichess/game', methods=['POST'])
 @app.route('/lichess/game', methods=['POST'])
@@ -57,6 +58,40 @@ def chesscom_user():
     if error: return jsonify({"error": error}), 400
     return jsonify({"games": games})
 
+@app.route('/api/analyze/position', methods=['POST'])
+@app.route('/analyze/position', methods=['POST'])
+def analyze_position():
+    """Consulta Lichess Cloud Eval y Tablebases para una posición FEN."""
+    data = request.json
+    fen = data.get('fen')
+    if not fen: return jsonify({"error": "FEN is required"}), 400
+    
+    results = {"eval": None, "tb": None}
+    
+    # 1. Cloud Eval
+    try:
+        res = requests.get(f"https://lichess.org/api/cloud-eval?fen={fen}", timeout=3)
+        if res.status_code == 200:
+            eval_data = res.json()
+            pvs = eval_data.get('pvs', [])
+            if pvs:
+                cp = pvs[0].get('cp')
+                mate = pvs[0].get('mate')
+                results["eval"] = {"cp": cp, "mate": mate}
+    except: pass
+    
+    # 2. Tablebase (Syzygy)
+    try:
+        # Solo si hay pocas piezas
+        piece_count = fen.split()[0].replace('/', '').replace('1', '').replace('2', '').replace('3', '').replace('4', '').replace('5', '').replace('6', '').replace('7', '').replace('8', '')
+        if len(piece_count) <= 7:
+            res = requests.get(f"https://tablebase.lichess.ovh/standard?fen={fen}", timeout=3)
+            if res.status_code == 200:
+                results["tb"] = res.json()
+    except: pass
+    
+    return jsonify(results)
+
 @app.route('/api/commentate', methods=['POST'])
 @app.route('/commentate', methods=['POST'])
 def commentate():
@@ -66,16 +101,12 @@ def commentate():
         metadata = data.get('metadata')
         critical_moments = data.get('critical_moments', [])
         api_key = data.get('api_key')
-        
-        # Perfiles de calidad
         quality = data.get('quality', 'Media')
         use_hybrid = data.get('use_hybrid', True)
         
         if not pgn_text or not metadata:
-            return jsonify({"error": "Faltan datos PGN o metadatos de análisis"}), 400
+            return jsonify({"error": "Faltan datos PGN o metadatos"}), 400
 
-        # Inicializar motor de comentarios (sin binario de Stockfish)
-        # Pasamos None al motor porque no lo usaremos en este modo
         commentator = CommentaryEngine(
             None, 
             api_key=api_key,
@@ -88,8 +119,7 @@ def commentate():
         )
 
         game = chess.pgn.read_game(io.StringIO(pgn_text))
-        if not game:
-            return jsonify({"error": "PGN inválido"}), 400
+        if not game: return jsonify({"error": "PGN inválido"}), 400
 
         commented_pgn = commentator.commentate_preanalyzed_game(
             game, metadata, critical_moments

@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import SettingsPanel from './SettingsPanel';
-import { Chess, Move } from 'chess.js';
+import { Chess } from 'chess.js';
 import { 
   Play, 
   ChevronLeft, 
@@ -17,7 +17,9 @@ import {
   Cpu,
   BrainCircuit,
   Zap,
-  Loader2
+  Loader2,
+  Trophy,
+  Activity
 } from 'lucide-react';
 
 const ChessBoard = dynamic(() => import('./ChessBoard'), { 
@@ -40,6 +42,10 @@ export default function GameContainer() {
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   
+  // LIVE Evaluation
+  const [liveEval, setLiveEval] = useState<any>(null);
+  const [liveTb, setLiveTb] = useState<any>(null);
+
   // Advanced History Management
   const [masterHistory, setMasterHistory] = useState<string[]>([]);
   const [moveCursor, setMoveCursor] = useState(0);
@@ -55,14 +61,36 @@ export default function GameContainer() {
     const n = new Chess();
     setGame(n);
     // @ts-ignore
-    window.GM_VERSION = '1.0.2';
-    console.log("🚀 GM Comentarista Mobile v1.0.2 initialized");
+    window.GM_VERSION = '1.0.3';
   }, []);
 
+  const updatePositionEval = async (fen: string) => {
+    try {
+        const res = await fetch('/api/analyze/position', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fen })
+        });
+        const data = await res.json();
+        setLiveEval(data.eval);
+        setLiveTb(data.tb);
+    } catch(e) {}
+  };
+
   const updateView = (tempGame: Chess, cursor: number) => {
-    setCurrentFen(tempGame.fen());
+    const fen = tempGame.fen();
+    setCurrentFen(fen);
     setMoveCursor(cursor);
     setGame(tempGame);
+    updatePositionEval(fen);
+  };
+
+  const jumpTo = (index: number) => {
+    const n = new Chess();
+    for (let i = 0; i < index; i++) {
+        n.move(masterHistory[i]);
+    }
+    updateView(n, index);
   };
 
   const loadPgnText = (text: string) => {
@@ -98,90 +126,26 @@ export default function GameContainer() {
     }
   };
 
-  // Navigation Logic
-  const handleFirst = () => {
-    const n = new Chess();
-    setMoveCursor(0);
-    setCurrentFen(n.fen());
-    setGame(n);
-  };
-
-  const handlePrev = () => {
-    if (moveCursor <= 0) return;
-    const newCursor = moveCursor - 1;
-    const n = new Chess();
-    for (let i = 0; i < newCursor; i++) {
-        n.move(masterHistory[i]);
-    }
-    updateView(n, newCursor);
-  };
-
-  const handleNext = () => {
-    if (moveCursor >= masterHistory.length) return;
-    const newCursor = moveCursor + 1;
-    const n = new Chess();
-    for (let i = 0; i < newCursor; i++) {
-        n.move(masterHistory[i]);
-    }
-    updateView(n, newCursor);
-  };
-
-  const handleLast = () => {
-    const newCursor = masterHistory.length;
-    const n = new Chess();
-    for (let i = 0; i < newCursor; i++) {
-        n.move(masterHistory[i]);
-    }
-    updateView(n, newCursor);
-  };
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      loadPgnText(content);
-    };
-    reader.readAsText(file);
-  };
+  // Navigation UI
+  const handleFirst = () => jumpTo(0);
+  const handlePrev = () => jumpTo(Math.max(0, moveCursor - 1));
+  const handleNext = () => jumpTo(Math.min(masterHistory.length, moveCursor + 1));
+  const handleLast = () => jumpTo(masterHistory.length);
 
   const fetchLichess = async () => {
     if (!lichessQuery) return alert("Introduce un usuario");
     setIsLoading(true);
     try {
-      console.log("Fetching Lichess user:", lichessQuery);
       const res = await fetch('/api/lichess/user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: lichessQuery })
       });
-      if (res.status === 404) throw new Error("API not found (404)");
       const data = await res.json();
       if (data.games) setRemoteGames(data.games);
       else alert(data.error || "Error al buscar usuario");
     } catch (e) {
-      alert("Error de red: " + e);
-    }
-    setIsLoading(false);
-  };
-
-  const fetchChessCom = async () => {
-    if (!chesscomQuery) return alert("Introduce un usuario");
-    setIsLoading(true);
-    try {
-      console.log("Fetching Chess.com user:", chesscomQuery);
-      const res = await fetch('/api/chesscom/user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: chesscomQuery })
-      });
-      if (res.status === 404) throw new Error("API not found (404)");
-      const data = await res.json();
-      if (data.games) setRemoteGames(data.games);
-      else alert(data.error || "Error al buscar usuario");
-    } catch (e) {
-      alert("Error de red: " + e);
+      alert("Error de red");
     }
     setIsLoading(false);
   };
@@ -191,18 +155,41 @@ export default function GameContainer() {
     setIsAnalyzing(true);
     setProgress(0);
     
-    const historyVerbose = game.history({ verbose: true });
-    const metadata = historyVerbose.map((m, i) => ({
-      m: Math.floor(i / 2) + 1,
-      t: i % 2 === 0 ? 'Bl' : 'Ne',
-      san: m.san,
-      eval: 0.35,
-      loss: 0.05,
-      rank: 1,
-      fen: m.after,
-      cap: m.flags.includes('c'),
-      estrp: false
-    }));
+    // Generar metadatos REALES
+    const fullHistory = new Chess();
+    const metadata = [];
+    const critMoments = [];
+    
+    for (let i = 0; i < masterHistory.length; i++) {
+        setProgress(Math.round((i / masterHistory.length) * 40));
+        const moveSan = masterHistory[i];
+        const res = await fetch('/api/analyze/position', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fen: fullHistory.fen() })
+        });
+        const evalData = await res.json();
+        
+        fullHistory.move(moveSan);
+        
+        metadata.push({
+            m: Math.floor(i / 2) + 1,
+            t: i % 2 === 0 ? 'Bl' : 'Ne',
+            san: moveSan,
+            eval: (evalData.eval?.cp || (evalData.eval?.mate * 1000) || 0) / 100,
+            loss: 0,
+            rank: 1,
+            fen: fullHistory.fen(),
+            tb: evalData.tb,
+            cap: false, // Opcional: Refinar detección de captura
+            estrp: false
+        });
+        
+        // Detección básica de momento crítico (> 1.5 de diferencia)
+        if (i > 0 && Math.abs(metadata[i].eval - (metadata[i-1]?.eval || 0)) > 1.5) {
+            critMoments.push(i);
+        }
+    }
 
     try {
       setProgress(50);
@@ -215,6 +202,7 @@ export default function GameContainer() {
         body: JSON.stringify({
           pgn: game.pgn(),
           metadata: metadata,
+          critical_moments: critMoments,
           api_key: apiKey,
           quality: quality
         })
@@ -228,7 +216,7 @@ export default function GameContainer() {
         alert("Error: " + (result.error || "Desconocido"));
       }
     } catch (err) {
-      alert("Error de conexión: " + err);
+      alert("Error de conexión");
     }
     
     setProgress(100);
@@ -236,12 +224,19 @@ export default function GameContainer() {
     setActiveTab('analysis');
   };
 
+  const getEvalText = () => {
+    if (!liveEval) return "Evaluando...";
+    if (liveEval.mate !== undefined && liveEval.mate !== null) return `#${liveEval.mate}`;
+    const val = (liveEval.cp / 100).toFixed(1);
+    return val > 0 ? `+${val}` : val;
+  };
+
   if (!mounted) return null;
 
   return (
     <>
       <header className="header animate-fade-in">
-        <h1>♟️ GM Móvil <span style={{ fontSize: '0.6rem', padding: '2px 6px', background: 'var(--accent-blue)', borderRadius: '12px', verticalAlign: 'middle', marginLeft: '5px', opacity: 0.8 }}>v1.0.2</span></h1>
+        <h1>♟️ GM Móvil <span className="badge">v1.0.3</span></h1>
         <p>Tu entrenador Gran Maestro personalizado</p>
       </header>
 
@@ -283,12 +278,7 @@ export default function GameContainer() {
           {importMode === 'lichess' && (
             <div className="animate-fade-in">
               <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                <input 
-                  className="input" 
-                  placeholder="Usuario de Lichess..." 
-                  value={lichessQuery}
-                  onChange={(e) => setLichessQuery(e.target.value)}
-                />
+                <input className="input" placeholder="Usuario de Lichess..." value={lichessQuery} onChange={(e) => setLichessQuery(e.target.value)} />
                 <button className="btn btn-secondary" style={{ width: 'auto' }} onClick={fetchLichess} disabled={isLoading}>
                   {isLoading ? <Loader2 className="animate-spin" size={18} /> : <Search size={18} />}
                 </button>
@@ -297,46 +287,11 @@ export default function GameContainer() {
                 <div style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '8px' }}>
                   {remoteGames.map(g => (
                     <div key={g.id} className="nav-btn" style={{ width: '100%', height: 'auto', padding: '8px', fontSize: '0.7rem', textAlign: 'left', justifyContent: 'flex-start', borderRadius: 0, borderBottom: '1px solid var(--border)' }} onClick={() => loadPgnText(g.pgn || g.label)}>
-                      {g.label || `${g.players?.white?.user?.name} vs ${g.players?.black?.user?.name}`}
+                      {g.label}
                     </div>
                   ))}
                 </div>
               )}
-            </div>
-          )}
-
-          {importMode === 'chesscom' && (
-            <div className="animate-fade-in">
-              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                <input 
-                  className="input" 
-                  placeholder="Usuario de Chess.com..." 
-                  value={chesscomQuery}
-                  onChange={(e) => setChesscomQuery(e.target.value)}
-                />
-                <button className="btn btn-secondary" style={{ width: 'auto' }} onClick={fetchChessCom} disabled={isLoading}>
-                  {isLoading ? <Loader2 className="animate-spin" size={18} /> : <Search size={18} />}
-                </button>
-              </div>
-              {remoteGames.length > 0 && (
-                <div style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '8px' }}>
-                  {remoteGames.map(g => (
-                    <div key={g.id} className="nav-btn" style={{ width: '100%', height: 'auto', padding: '8px', fontSize: '0.7rem', textAlign: 'left', justifyContent: 'flex-start', borderRadius: 0, borderBottom: '1px solid var(--border)' }} onClick={() => loadPgnText(g.pgn)}>
-                      {g.players?.white?.user?.name} vs {g.players?.black?.user?.name} ({g.speed})
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {importMode === 'file' && (
-            <div className="animate-fade-in" style={{ textAlign: 'center', padding: '1rem', border: '2px dashed var(--border)', borderRadius: '12px' }}>
-              <input type="file" id="pgnFile" accept=".pgn" onChange={handleFileUpload} style={{ display: 'none' }} />
-              <label htmlFor="pgnFile" style={{ cursor: 'pointer' }}>
-                <Upload size={32} style={{ marginBottom: '0.5rem', color: 'var(--accent-blue)' }} />
-                <p style={{ fontSize: '0.85rem' }}>Toca para subir un archivo .pgn</p>
-              </label>
             </div>
           )}
         </div>
@@ -344,24 +299,46 @@ export default function GameContainer() {
 
       {activeTab === 'settings' && <SettingsPanel />}
 
-      {/* Main Board View */}
-      <section className="card animate-fade-in" style={{ padding: '0.75rem' }}>
-        <ChessBoard 
-          fen={currentFen} 
-          onMove={onMove} 
-        />
-        <div style={{ padding: '10px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--text-accent)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '75%' }}>
-             [{moveCursor}/{masterHistory.length}] {game?.pgn() || "Nueva Partida"}
-          </div>
-          <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-            Turno: {game?.turn() === 'w' ? 'Bl' : 'Ne'}
-          </div>
+      <section className="card animate-fade-in" style={{ padding: '0.75rem', position: 'relative' }}>
+        {/* Evaluación Flotante */}
+        <div style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'rgba(0,0,0,0.7)', padding: '4px 10px', borderRadius: '12px', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', gap: '6px', zIndex: 10 }}>
+            <Activity size={14} className="text-blue-400" />
+            <span style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>{getEvalText()}</span>
+            {liveTb && <span style={{ fontSize: '0.65rem', paddingLeft: '4px', borderLeft: '1px solid var(--border)' }}>TB: {liveTb.category || '...'}</span>}
         </div>
+
+        <ChessBoard fen={currentFen} onMove={onMove} />
+        
+        {/* Lista de jugadas PGN */}
+        <div className="pgn-scroll" style={{ height: '80px', background: 'rgba(0,0,0,0.15)', borderRadius: '8px', margin: '10px 0', padding: '8px', overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: '4px', alignContent: 'flex-start' }}>
+            {masterHistory.length === 0 && <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Mueve una pieza para empezar...</p>}
+            {masterHistory.map((mv, i) => {
+                const moveNum = Math.floor(i / 2) + 1;
+                const isWhite = i % 2 === 0;
+                return (
+                    <span 
+                        key={i} 
+                        onClick={() => jumpTo(i + 1)}
+                        style={{ 
+                            fontSize: '0.8rem', 
+                            cursor: 'pointer', 
+                            padding: '2px 4px', 
+                            borderRadius: '4px',
+                            background: moveCursor === i + 1 ? 'var(--accent-blue)' : 'transparent',
+                            color: moveCursor === i + 1 ? 'white' : 'inherit'
+                        }}
+                    >
+                        {isWhite && <span style={{ color: 'var(--text-muted)', marginRight: '2px' }}>{moveNum}.</span>}
+                        {mv}
+                    </span>
+                );
+            })}
+        </div>
+
         <div className="nav-controls">
           <button className="nav-btn" onClick={handleFirst}><ChevronsLeft size={20} /></button>
           <button className="nav-btn" onClick={handlePrev}><ChevronLeft size={20} /></button>
-          <button className="nav-btn" onClick={() => { const n = new Chess(); setMasterHistory([]); updateView(n, 0); setCommentary({}); }}><Play size={20} /></button>
+          <button className="nav-btn" onClick={() => { setMasterHistory([]); updateView(new Chess(), 0); }}><Play size={20} /></button>
           <button className="nav-btn" onClick={handleNext}><ChevronRight size={20} /></button>
           <button className="nav-btn" onClick={handleLast}><ChevronsRight size={20} /></button>
         </div>
@@ -376,12 +353,16 @@ export default function GameContainer() {
           
           {isAnalyzing ? (
             <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', marginBottom: '4px' }}>
+                <span>Preparando metadatos reales...</span>
+                <span>{progress}%</span>
+              </div>
               <div style={{ height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
                 <div style={{ width: `${progress}%`, height: '100%', background: 'var(--gradient)', transition: 'width 0.3s' }} />
               </div>
             </div>
           ) : (
-            <p style={{ fontSize: '0.9rem' }}>{commentary[currentFen] || "Toca 'Generar Comentarios' para obtener la visión del GM sobre esta posición."}</p>
+            <p style={{ fontSize: '0.9rem' }}>{commentary[currentFen] || "Toca 'Generar Comentarios' para obtener la visión del GM basada en Stockfish 16.1."}</p>
           )}
           
           {!isAnalyzing && (
@@ -393,8 +374,22 @@ export default function GameContainer() {
       )}
 
       <div style={{ textAlign: 'center', opacity: 0.3, fontSize: '0.7rem', marginTop: '1rem', paddingBottom: '2rem' }}>
-        GM Comentarista Mobile · 2026
+        GM Móvil · v1.0.3 · Chess engine by Lichess
       </div>
+
+      <style jsx>{`
+        .badge {
+            font-size: 0.6rem;
+            padding: 2px 6px;
+            background: var(--accent-blue);
+            border-radius: 12px;
+            vertical-align: middle;
+            margin-left: 5px;
+            opacity: 0.8;
+        }
+        .pgn-scroll::-webkit-scrollbar { width: 4px; }
+        .pgn-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+      `}</style>
     </>
   );
 }
